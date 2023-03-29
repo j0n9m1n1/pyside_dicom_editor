@@ -14,6 +14,7 @@ list_tag = ["PatientID",
             "ContentDate",
             "ContentTime",
             "StudyInstanceUID",
+            "SOPInstanceUID",
             "WindowCenter",
             "WindowWidth"
             ]
@@ -35,18 +36,19 @@ class MainWindow(QMainWindow):
         self.grid_layout = QGridLayout()
 
         self.table_widget = QTableWidget()
-        self.line_edit_dcm_path = QLineEdit()
+
+        self.label_source_path = QLabel()
+        self.line_edit_source_path = QLineEdit()
+
+        self.label_target_path = QLabel()
+        self.line_edit_target_path = QLineEdit()
+
         self.check_load_pixel_data = QCheckBox()
 
-        self.button_get_path = QPushButton()
+        self.button_load_files = QPushButton()
 
         self.button_save = QPushButton()
-        # self.button_revert = QPushButton()
         self.button_clear = QPushButton()
-
-        # for i in range(len(list_tag)):
-        #     self.label_tags[i] = QLabel()
-        #     self.line_edit_tags[i] = QLineEdit()
             
         self.label_tags = [QLabel() for x in range(len(list_tag))]
         self.line_edit_tags = [QLineEdit() for x in range(len(list_tag))]
@@ -70,11 +72,17 @@ class MainWindow(QMainWindow):
         self.table_widget.setHorizontalHeaderLabels(list_tag)
         self.table_widget.setRowCount(50)
 
-        self.line_edit_dcm_path.setText(r"G:\아이디\SERIES1")
+        self.label_source_path.setText("Source")
+        self.line_edit_source_path.setText(r"D:\jm")
+
+        self.label_target_path.setText("Target")
+        self.line_edit_target_path.setText(r"D:\jm\Modified")
 
         self.check_load_pixel_data.setText("Pixel Data")
-        self.button_get_path.setText("Get")
-        self.button_get_path.clicked.connect(self.button_clicked_confirm_path)
+        self.check_load_pixel_data.setChecked(True)
+
+        self.button_load_files.setText("Load")
+        self.button_load_files.clicked.connect(self.button_clicked_load_files)
 
         self.button_save.setText("Save")
         self.button_save.clicked.connect(self.button_clicked_save)
@@ -84,17 +92,21 @@ class MainWindow(QMainWindow):
         # 호기심 해결겸 list comp
         [self.label_tags[i].setText(tag) for i, tag in enumerate(list_tag)]
     
-        self.grid_layout.addWidget(self.line_edit_dcm_path, 0, 0)
-        self.grid_layout.addWidget(self.check_load_pixel_data, 0, 1)
-        self.grid_layout.addWidget(self.button_get_path,    0, 2)
+
+        self.grid_layout.addWidget(self.label_source_path,      0, 0)
+        self.grid_layout.addWidget(self.line_edit_source_path,  0, 1)
+        self.grid_layout.addWidget(self.label_target_path,      0, 2)
+        self.grid_layout.addWidget(self.line_edit_target_path,  0, 3)
+        self.grid_layout.addWidget(self.check_load_pixel_data,  0, 4)
+        self.grid_layout.addWidget(self.button_load_files,      0, 5)
 
         # 호기심 해결겸 list comp
-        [self.grid_layout.addWidget(self.label_tags[i], i+1, 1) for i in range(count_list_tag)]
-        [self.grid_layout.addWidget(self.line_edit_tags[i], i+1, 2) for i in range(count_list_tag)]
+        [self.grid_layout.addWidget(self.label_tags[i], i+1, 4) for i in range(count_list_tag)]
+        [self.grid_layout.addWidget(self.line_edit_tags[i], i+1, 5) for i in range(count_list_tag)]
 
-        self.grid_layout.addWidget(self.table_widget,      1, 0, count_list_tag + 1, 1)
-        self.grid_layout.addWidget(self.button_save,        count_list_tag + 1, 1)
-        self.grid_layout.addWidget(self.button_clear,        count_list_tag + 1, 2)
+        self.grid_layout.addWidget(self.table_widget,      1, 0, count_list_tag + 1, 4)
+        self.grid_layout.addWidget(self.button_save,        count_list_tag + 1, 4)
+        self.grid_layout.addWidget(self.button_clear,        count_list_tag + 1, 5)
 
         
 
@@ -126,12 +138,16 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tab_widget)
         self.setWindowTitle("DICOM Header Editor")
 
-    def button_clicked_confirm_path(self):
-        input_path = self.line_edit_dcm_path.text()
+    def button_clicked_load_files(self):
+        
+        input_path = self.line_edit_source_path.text()
         print(input_path)
         self.insert_file_list_to_table_widget(input_path)
         
     def button_clicked_save(self):
+        if not os.path.exists(self.line_edit_target_path.text()):
+            os.makedirs(self.line_edit_target_path.text())
+
         list_selected_index = self.table_widget.selectedIndexes()
         for i, item in enumerate(list_selected_index):
             for j, tag in enumerate(list_tag):
@@ -140,7 +156,8 @@ class MainWindow(QMainWindow):
                     list_ds[item.row()][tag].value = self.line_edit_tags[j].text()
                     print(f"After: {list_ds[item.row()][tag].value}")
                     # 생각해보니 파일명을 가지고 있지 않음
-                    # list_ds[item.row()].save_as()
+                    str_out_file_name = f'{item.row()}_{list_ds[item.row()]["PatientID"].value}_{list_ds[item.row()]["PatientName"].value}_{list_ds[item.row()]["SOPInstanceUID"].value}.dcm'
+                    list_ds[item.row()].save_as(os.path.join(self.line_edit_target_path.text(), str_out_file_name))
 
     '''
     수정된 col, row 찾아서 값 변경 후 row의 bg 변경하기?
@@ -152,17 +169,25 @@ class MainWindow(QMainWindow):
         pass
     
     def insert_file_list_to_table_widget(self, path):
+        self.table_widget.clear()
         list_ds.clear()
 
+        b_check_pixel_data = self.check_load_pixel_data.isChecked()
+        self.table_widget.setColumnCount(len(list_tag))
+        self.table_widget.setHorizontalHeaderLabels(list_tag)
+        
         dict_files = os.listdir(path)
-        # print(dict_files)
+
+        self.table_widget.setRowCount(len(dict_files))
+
         for i, file_name in enumerate(dict_files):
             file_path = os.path.join(path, file_name)
-            list_ds.append(dcmread(file_path, stop_before_pixels=True, force=True))
-            # print(ds)
+            list_ds.append(dcmread(file_path, stop_before_pixels=not b_check_pixel_data, force=True))
+            
             for j, tag in enumerate(list_tag):
                 self.table_widget.setItem(i, j, QTableWidgetItem(str(list_ds[i][list_tag[j]].value)))
                 # print(ds[list_tag[j]].value)
+
         self.table_widget.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
         
 
