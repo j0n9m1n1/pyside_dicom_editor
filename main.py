@@ -166,7 +166,8 @@ class MainWindow(QMainWindow):
         pass
 
     def button_clicked_clear(self):
-        pass
+        [self.line_edit_tags[i].clear() for i in range(len(list_tag))]
+        self.line_edit_tags[0].setFocus()
     
     def insert_file_list_to_table_widget(self, path):
         self.table_widget.clear()
