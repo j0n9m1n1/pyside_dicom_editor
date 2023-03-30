@@ -139,9 +139,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("DICOM Header Editor")
 
     def button_clicked_load_files(self):
-        
         input_path = self.line_edit_source_path.text()
-        print(input_path)
         self.insert_file_list_to_table_widget(input_path)
         
     def button_clicked_save(self):
@@ -177,11 +175,11 @@ class MainWindow(QMainWindow):
         self.table_widget.setColumnCount(len(list_tag))
         self.table_widget.setHorizontalHeaderLabels(list_tag)
         
-        dict_files = os.listdir(path)
+        list_load_files = os.listdir(path)
+        print(list_load_files)
+        self.table_widget.setRowCount(len(list_load_files))
 
-        self.table_widget.setRowCount(len(dict_files))
-
-        for i, file_name in enumerate(dict_files):
+        for i, file_name in enumerate(list_load_files):
             file_path = os.path.join(path, file_name)
             list_ds.append(dcmread(file_path, stop_before_pixels=not b_check_pixel_data, force=True))
             
