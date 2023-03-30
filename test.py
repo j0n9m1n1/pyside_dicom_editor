@@ -51,6 +51,11 @@ class TestStringMethods(unittest.TestCase):
                         path = os.path.join(root, dir_name, file_name)
                         logging.debug(path)
 
+    def test_directory_change(self):
+        a = Path(r"D:\icon_list\black-24dp (2)\2x\filename~~.dcm")
+        output_path = r"D:\modified"
+        if len(a.parts()) == 2: #mean D:\\file.dcm
+            pass
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

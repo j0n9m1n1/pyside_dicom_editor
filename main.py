@@ -198,6 +198,9 @@ class MainWindow(QMainWindow):
     def save_progress_bar(self):
         pass
 
+    def fetch_next(self):
+        pass
+
     def button_clicked_clear(self):
         [self.line_edit_tags[i].clear() for i in range(len(list_tag))]
         self.line_edit_tags[0].setFocus()
@@ -214,11 +217,6 @@ class MainWindow(QMainWindow):
         # 근데 확장자가 아예 없는 경우도 있어서 고민중
         # 일단 .dcm만
         for root, dirs, files in os.walk(path):
-            # if len(dirs) > 0:
-            # for dir_name in dirs:
-            # pass
-            # logging.debug("dir: " + dir_name)
-            # print("dir: " + dir_name)
             if len(files) > 0:
                 for file_name in files:
                     if (
