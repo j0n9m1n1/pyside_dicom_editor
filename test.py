@@ -54,8 +54,16 @@ class TestStringMethods(unittest.TestCase):
     def test_directory_change(self):
         a = Path(r"D:\icon_list\black-24dp (2)\2x\filename~~.dcm")
         output_path = r"D:\modified"
-        if len(a.parts()) == 2: #mean D:\\file.dcm
+        if len(a.parts()) == 2:  # mean D:\\file.dcm
             pass
+
+    def test_load_with_hex(self):
+        hex_tag = "0x0010, 0x0040"
+        f, s = map(lambda z: int(z, 16), hex_tag.replace(" ", "").split(","))
+        ds = dcmread(r"G:\아이디\SERIES1\0")
+        a = ds[f, s].value
+        print(a)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
