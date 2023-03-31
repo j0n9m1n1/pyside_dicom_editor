@@ -40,6 +40,9 @@ class MainWindow(QMainWindow):
 
         self.button_load_files = QPushButton()
 
+        self.button_select_source_dir = QPushButton()
+        self.button_select_target_dir = QPushButton()
+
         self.button_save_dcm = QPushButton()
         self.button_clear = QPushButton()
 
@@ -91,6 +94,15 @@ class MainWindow(QMainWindow):
         self.check_load_pixel_data.setText("Pixel Data")
         self.check_load_pixel_data.setChecked(True)
 
+        self.button_select_source_dir.setText("...")
+        self.button_select_source_dir.clicked.connect(
+            self.button_clicked_select_source_path
+        )
+        self.button_select_target_dir.setText("...")
+        self.button_select_target_dir.clicked.connect(
+            self.button_clicked_select_target_path
+        )
+
         self.button_load_files.setText("Load")
         self.button_load_files.clicked.connect(self.button_clicked_load_files)
 
@@ -108,18 +120,22 @@ class MainWindow(QMainWindow):
 
         self.grid_layout.addWidget(self.label_source_path, 0, 0)
         self.grid_layout.addWidget(self.line_edit_source_path, 0, 1)
-        self.grid_layout.addWidget(self.label_target_path, 0, 2)
-        self.grid_layout.addWidget(self.line_edit_target_path, 0, 3)
-        self.grid_layout.addWidget(self.check_load_pixel_data, 0, 4)
-        self.grid_layout.addWidget(self.button_load_files, 0, 5)
+        self.grid_layout.addWidget(self.button_select_source_dir, 0, 2)
+
+        self.grid_layout.addWidget(self.label_target_path, 0, 3)
+        self.grid_layout.addWidget(self.line_edit_target_path, 0, 4)
+        self.grid_layout.addWidget(self.button_select_target_dir, 0, 5)
+
+        self.grid_layout.addWidget(self.check_load_pixel_data, 0, 6)
+        self.grid_layout.addWidget(self.button_load_files, 0, 7)
 
         # 호기심 해결겸 list comp
         [
-            self.grid_layout.addWidget(self.label_tags[i], i + 1, 4)
+            self.grid_layout.addWidget(self.label_tags[i], i + 1, 6)
             for i in range(count_list_tag)
         ]
         [
-            self.grid_layout.addWidget(self.line_edit_tags[i], i + 1, 5)
+            self.grid_layout.addWidget(self.line_edit_tags[i], i + 1, 7)
             for i in range(count_list_tag)
         ]
 
@@ -128,27 +144,28 @@ class MainWindow(QMainWindow):
             1,
             0,
             count_list_tag // 2,
-            4,
+            6,
         )
         self.grid_layout.addWidget(
             self.list_widget_log,
             (count_list_tag // 2) + 1,
             0,
             count_list_tag - (count_list_tag // 2),
-            4,
+            6,
         )
 
         self.progress_bar.setAlignment(Qt.AlignCenter)
         self.grid_layout.addWidget(
-            self.progress_bar, count_list_tag + 1, 0, 1, 4
+            self.progress_bar, count_list_tag + 1, 0, 1, 6
         )
         # self.statusBar().insertWidget(0, self.progress_bar)
 
-        self.grid_layout.addWidget(self.button_save_dcm, count_list_tag + 1, 4)
-        self.grid_layout.addWidget(self.button_clear, count_list_tag + 1, 5)
+        self.grid_layout.addWidget(self.button_save_dcm, count_list_tag + 1, 6)
+        self.grid_layout.addWidget(self.button_clear, count_list_tag + 1, 7)
 
         self.tab.setLayout(self.grid_layout)
 
+        #
         self.tab_widget.addTab(self.tab2, "Setting")
 
         self.label_current_tags.setText("Current Tags")
@@ -226,8 +243,12 @@ class MainWindow(QMainWindow):
         self.t1.start()
 
     def button_clicked_save(self):
+        self.t2 = Thread(target=self.create_modified_dcm)
+        self.t2.start()
+
+    def create_modified_dcm(self):
         list_selected_index = self.table_widget_dicom.selectedIndexes()
-        for item in list_selected_index:
+        for i, item in enumerate(list_selected_index):
             for j, tag in enumerate(self.list_current_tags):
                 try:
                     if self.line_edit_tags[j].text() != "":
@@ -257,43 +278,58 @@ class MainWindow(QMainWindow):
                             print(
                                 f"After: {self.list_ds[item.row()][tag].value}"
                             )
-
-                        # will be a checkbox option
-                        maintain_original_directory_structure = False
-
-                        file_path = Path(self.list_files[item.row()])
-
-                        if maintain_original_directory_structure:
-                            output_path = self.line_edit_target_path
-
-                            count_parts = len(file_path.parts)
-                            if count_parts == 2:
-                                output_path = os.path.join(
-                                    output_path, file_path.parts[1]
-                                )
-                            elif count_parts > 2:
-                                for p in range(1, count_parts):
-                                    output_path = os.path.join(
-                                        output_path, file_path.parts[p]
-                                    )
-                            else:
-                                pass  # something wrong loaded file path
-                        else:
-                            str_out_file_name = (
-                                file_path.stem + file_path.suffix
-                            )
-                            output_path = os.path.join(
-                                self.line_edit_target_path.text(),
-                                str_out_file_name,
-                            )
-
-                        if not os.path.exists(output_path):
-                            os.makedirs(output_path)
-
-                        self.list_ds[item.row()].save_as(output_path)
-                        print(f"saved: {output_path}")
                 except Exception:
                     pass
+            # will be a checkbox option
+            maintain_original_directory_structure = False
+
+            file_path = Path(self.list_files[item.row()])
+
+            if maintain_original_directory_structure:
+                output_path = self.line_edit_target_path
+
+                count_parts = len(file_path.parts)
+                if count_parts == 2:
+                    output_path = os.path.join(output_path, file_path.parts[1])
+                elif count_parts > 2:
+                    for p in range(1, count_parts):
+                        output_path = os.path.join(
+                            output_path, file_path.parts[p]
+                        )
+                else:
+                    pass  # something wrong loaded file path
+            else:
+                str_out_file_name = file_path.stem + file_path.suffix
+                output_path = os.path.join(
+                    self.line_edit_target_path.text(),
+                    str_out_file_name,
+                )
+            try:
+                if not os.path.exists(os.path.dirname(output_path)):
+                    os.makedirs(os.path.dirname(output_path))
+
+                self.progress_bar.setValue(
+                    int(((i + 1) / len(list_selected_index) * 100))
+                )
+                self.list_ds[item.row()].save_as(output_path)
+                self.progress_bar.setFormat(
+                    f"Saving {i+1}/{len(list_selected_index)} {self.progress_bar.value()}%"
+                )
+                print(f"saved: {output_path}")
+            except:
+                pass
+
+    def button_clicked_select_source_path(self):
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select Source Directory"
+        )
+        self.line_edit_source_path.setText(directory)
+
+    def button_clicked_select_target_path(self):
+        directory = QFileDialog.getExistingDirectory(
+            self, "Select Target Directory"
+        )
+        self.line_edit_target_path.setText(directory)
 
     def list_widget_current_tags_item_clicked(self):
         self.focus_list_widget = self.list_widget_current_tags
@@ -464,9 +500,13 @@ class MainWindow(QMainWindow):
             # self.progress_bar.setUpdatesEnabled(True)
             # self.progress_bar.setValue(int(i / len(list_files)) * 100)
             # print(int((i / (len(list_files) - 1) * 100)))
-            # 499, 500(-1), 0.98(*100)
+            # 499 + 1, 500, 0.98(*100)
+
             self.progress_bar.setValue(
-                int((i / (len(self.list_files) - 1) * 100))
+                int(((i + 1) / (len(self.list_files)) * 100))
+            )
+            self.progress_bar.setFormat(
+                f"Loading {i+1}/{len(self.list_files)} {self.progress_bar.value()}%"
             )
             # self.progress_bar.update()
             for j, tag in enumerate(self.list_current_tags):
