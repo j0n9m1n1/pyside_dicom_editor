@@ -81,10 +81,12 @@ class MainWindow(QMainWindow):
         self.table_widget_dicom.setRowCount(50)
 
         self.label_source_path.setText("Source")
-        self.line_edit_source_path.setText(r"G:\STORAGE")
+        self.line_edit_source_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples")
+        # self.line_edit_source_path.setText(r"G:\STORAGE")
 
         self.label_target_path.setText("Target")
-        self.line_edit_target_path.setText(r"G:\STORAGE\modified")
+        self.line_edit_target_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples/modified")
+        # self.line_edit_target_path.setText(r"G:\STORAGE\modified")
 
         self.check_load_pixel_data.setText("Pixel Data")
         self.check_load_pixel_data.setChecked(True)
@@ -188,25 +190,24 @@ class MainWindow(QMainWindow):
         )
 
         self.grid_layout2.addWidget(self.label_current_tags, 0, 0)
-        self.grid_layout2.addWidget(self.label_available_tags, 0, 4)
+        self.grid_layout2.addWidget(self.label_available_tags, 0, 5)
 
-        self.grid_layout2.addWidget(self.list_widget_current_tags, 1, 0, 5, 1)
-        self.grid_layout2.addWidget(self.list_widget_available_tags, 1, 4, 5, 1)
+        self.grid_layout2.addWidget(self.list_widget_current_tags, 1, 0, 5, 2)
+        self.grid_layout2.addWidget(self.list_widget_available_tags, 1, 5, 5, 2)
 
-        self.grid_layout2.addWidget(self.button_tag_delete, 2, 2)
-
-        self.grid_layout2.addWidget(self.button_tag_up, 1, 2)
-        self.grid_layout2.addWidget(self.button_tag_move_to_current, 2, 3)
-        self.grid_layout2.addWidget(self.button_tag_move_to_available, 2, 1)
-        self.grid_layout2.addWidget(self.button_tag_down, 3, 2)
+        self.grid_layout2.addWidget(self.button_tag_up, 2, 3)
+        self.grid_layout2.addWidget(self.button_tag_move_to_current, 3, 4)
+        self.grid_layout2.addWidget(self.button_tag_delete, 3, 3)
+        self.grid_layout2.addWidget(self.button_tag_move_to_available, 3, 2)
+        self.grid_layout2.addWidget(self.button_tag_down, 4, 3)
 
         self.grid_layout2.addWidget(self.line_edit_current_tag_add, 6, 0)
         self.grid_layout2.addWidget(self.button_tag_add_current, 6, 1)
 
-        self.grid_layout2.addWidget(self.line_edit_available_tag_add, 6, 4)
-        self.grid_layout2.addWidget(self.button_tag_add_available, 6, 5)
+        self.grid_layout2.addWidget(self.line_edit_available_tag_add, 6, 5)
+        self.grid_layout2.addWidget(self.button_tag_add_available, 6, 6)
 
-        self.grid_layout2.addWidget(self.button_save_tag, 6, 3)
+        self.grid_layout2.addWidget(self.button_save_tag, 6, 2, 1, 3)
 
         self.tab2.setLayout(self.grid_layout2)
 
@@ -270,6 +271,7 @@ class MainWindow(QMainWindow):
         self.focus_list_widget = self.list_widget_available_tags
 
     def button_clicked_tag_add_current(self):
+        self.focus_list_widget = self.list_widget_current_tags
         tag = self.line_edit_current_tag_add.text()
         if tag is not None:
             self.list_widget_current_tags.addItem(tag)
@@ -278,6 +280,7 @@ class MainWindow(QMainWindow):
             )
 
     def button_clicked_tag_add_available(self):
+        self.focus_list_widget = self.list_widget_available_tags
         tag = self.line_edit_available_tag_add.text()
         if tag is not None:
             self.list_widget_available_tags.addItem(tag)
@@ -429,7 +432,7 @@ class MainWindow(QMainWindow):
             # print(int((i / (len(list_files) - 1) * 100)))
             # 499, 500(-1), 0.98(*100)
             self.progress_bar.setValue(int((i / (len(list_files) - 1) * 100)))
-            self.progress_bar.update()
+            # self.progress_bar.update()
             for j, tag in enumerate(self.list_current_tags):
                 try:
                     if "0x" in tag:
