@@ -1,19 +1,19 @@
 import sys, os, time, pickle
+from pathlib import Path
 from threading import Thread
 from pydicom import dcmread
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 
-list_ds = list()
-list_files = list()
-
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-
+        self.list_ds = list()
+        self.list_files = list()
         self.list_current_tags = list()
         self.list_available_tags = list()
+
         self.load_tag_files()
         self.ui_init()
         self.ui_init2()
@@ -81,12 +81,12 @@ class MainWindow(QMainWindow):
         self.table_widget_dicom.setRowCount(50)
 
         self.label_source_path.setText("Source")
-        self.line_edit_source_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples")
-        # self.line_edit_source_path.setText(r"G:\STORAGE")
+        # self.line_edit_source_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples")
+        self.line_edit_source_path.setText(r"G:\STORAGE")
 
         self.label_target_path.setText("Target")
-        self.line_edit_target_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples/modified")
-        # self.line_edit_target_path.setText(r"G:\STORAGE\modified")
+        # self.line_edit_target_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples/modified")
+        self.line_edit_target_path.setText(r"G:\STORAGE\modified")
 
         self.check_load_pixel_data.setText("Pixel Data")
         self.check_load_pixel_data.setChecked(True)
@@ -226,43 +226,74 @@ class MainWindow(QMainWindow):
         self.t1.start()
 
     def button_clicked_save(self):
-        if not os.path.exists(self.line_edit_target_path.text()):
-            os.makedirs(self.line_edit_target_path.text())
-
         list_selected_index = self.table_widget_dicom.selectedIndexes()
-        for i, item in enumerate(list_selected_index):
+        for item in list_selected_index:
             for j, tag in enumerate(self.list_current_tags):
-                if self.line_edit_tags[j].text() != "":
-                    if "0x" in tag:
-                        f, s = map(
-                            lambda z: int(z, 16),
-                            tag.replace(" ", "").split(","),
-                        )
-                        print(
-                            f"[{tag}]Before: {list_ds[item.row()][tag].value}",
-                            end=" ",
-                        )
-                        list_ds[item.row()][f, s].value = self.line_edit_tags[
-                            j
-                        ].text()
-                        print(f"After: {list_ds[item.row()][tag].value}")
-                    else:
-                        print(
-                            f"[{tag}]Before: {list_ds[item.row()][tag].value}",
-                            end=" ",
-                        )
-                        list_ds[item.row()][tag].value = self.line_edit_tags[
-                            j
-                        ].text()
-                        print(f"After: {list_ds[item.row()][tag].value}")
+                try:
+                    if self.line_edit_tags[j].text() != "":
+                        if "," in tag:
+                            f, s = map(
+                                lambda z: int(z, 16),
+                                tag.replace(" ", "").split(","),
+                            )
+                            print(
+                                f"[{tag}]Before: {self.list_ds[item.row()][f, s].value}",
+                                end=" ",
+                            )
+                            self.list_ds[item.row()][
+                                f, s
+                            ].value = self.line_edit_tags[j].text()
+                            print(
+                                f"After: {self.list_ds[item.row()][f, s].value}"
+                            )
+                        else:
+                            print(
+                                f"[{tag}]Before: {self.list_ds[item.row()][tag].value}",
+                                end=" ",
+                            )
+                            self.list_ds[item.row()][
+                                tag
+                            ].value = self.line_edit_tags[j].text()
+                            print(
+                                f"After: {self.list_ds[item.row()][tag].value}"
+                            )
 
-                    # 생각해보니 파일명을 가지고 있지 않음? 있나
-                    str_out_file_name = f'{item.row()}_{list_ds[item.row()]["PatientID"].value}_{list_ds[item.row()]["PatientName"].value}_{list_ds[item.row()]["SOPInstanceUID"].value}.dcm'
-                    list_ds[item.row()].save_as(
-                        os.path.join(
-                            self.line_edit_target_path.text(), str_out_file_name
-                        )
-                    )
+                        # will be a checkbox option
+                        maintain_original_directory_structure = False
+
+                        file_path = Path(self.list_files[item.row()])
+
+                        if maintain_original_directory_structure:
+                            output_path = self.line_edit_target_path
+
+                            count_parts = len(file_path.parts)
+                            if count_parts == 2:
+                                output_path = os.path.join(
+                                    output_path, file_path.parts[1]
+                                )
+                            elif count_parts > 2:
+                                for p in range(1, count_parts):
+                                    output_path = os.path.join(
+                                        output_path, file_path.parts[p]
+                                    )
+                            else:
+                                pass  # something wrong loaded file path
+                        else:
+                            str_out_file_name = (
+                                file_path.stem + file_path.suffix
+                            )
+                            output_path = os.path.join(
+                                self.line_edit_target_path.text(),
+                                str_out_file_name,
+                            )
+
+                        if not os.path.exists(output_path):
+                            os.makedirs(output_path)
+
+                        self.list_ds[item.row()].save_as(output_path)
+                        print(f"saved: {output_path}")
+                except Exception:
+                    pass
 
     def list_widget_current_tags_item_clicked(self):
         self.focus_list_widget = self.list_widget_current_tags
@@ -298,6 +329,9 @@ class MainWindow(QMainWindow):
         pass
 
     def fetch_next(self):
+        pass
+
+    def add_log(self):
         pass
 
     def button_clicked_tag_delete(self):
@@ -398,8 +432,8 @@ class MainWindow(QMainWindow):
         path = self.line_edit_source_path.text()
 
         self.table_widget_dicom.clear()
-        list_ds.clear()
-        list_files.clear()
+        self.list_ds.clear()
+        self.list_files.clear()
 
         b_check_pixel_data = self.check_load_pixel_data.isChecked()
 
@@ -413,14 +447,14 @@ class MainWindow(QMainWindow):
                 for file_name in files:
                     if (
                         file_name.lower().endswith("dcm")
-                        and len(list_files) < 500
+                        and len(self.list_files) < 500
                     ):
-                        list_files.append(os.path.join(root, file_name))
-        print(len(list_files))
-        self.table_widget_dicom.setRowCount(len(list_files))
+                        self.list_files.append(os.path.join(root, file_name))
+        print(len(self.list_files))
+        self.table_widget_dicom.setRowCount(len(self.list_files))
 
-        for i, file_path in enumerate(list_files):
-            list_ds.append(
+        for i, file_path in enumerate(self.list_files):
+            self.list_ds.append(
                 dcmread(
                     file_path,
                     stop_before_pixels=not b_check_pixel_data,
@@ -431,11 +465,13 @@ class MainWindow(QMainWindow):
             # self.progress_bar.setValue(int(i / len(list_files)) * 100)
             # print(int((i / (len(list_files) - 1) * 100)))
             # 499, 500(-1), 0.98(*100)
-            self.progress_bar.setValue(int((i / (len(list_files) - 1) * 100)))
+            self.progress_bar.setValue(
+                int((i / (len(self.list_files) - 1) * 100))
+            )
             # self.progress_bar.update()
             for j, tag in enumerate(self.list_current_tags):
                 try:
-                    if "0x" in tag:
+                    if "," in tag:
                         f, s = map(
                             lambda z: int(z, 16),
                             tag.replace(" ", "").split(","),
@@ -443,13 +479,13 @@ class MainWindow(QMainWindow):
                         self.table_widget_dicom.setItem(
                             i,
                             j,
-                            QTableWidgetItem(str(list_ds[i][f, s].value)),
+                            QTableWidgetItem(str(self.list_ds[i][f, s].value)),
                         )
                     else:
                         self.table_widget_dicom.setItem(
                             i,
                             j,
-                            QTableWidgetItem(str(list_ds[i][tag].value)),
+                            QTableWidgetItem(str(self.list_ds[i][tag].value)),
                         )
                 except KeyError:
                     self.table_widget_dicom.setItem(

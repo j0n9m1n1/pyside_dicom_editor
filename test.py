@@ -6,20 +6,6 @@ from pathlib import Path
 
 
 class TestStringMethods(unittest.TestCase):
-    def test_upper(self):
-        self.assertEqual("foo".upper(), "FOO")
-
-    def test_isupper(self):
-        self.assertTrue("FOO".isupper())
-        self.assertFalse("Foo".isupper())
-
-    def test_split(self):
-        s = "hello world"
-        self.assertEqual(s.split(), ["hello", "world"])
-        # check that s.split fails when the separator is not a string
-        with self.assertRaises(TypeError):
-            s.split(2)
-
     def test_edit(self):
         tag_test = "PatientID"
         # ds = dcmread(r"G:\아이디\SERIES1\0")
@@ -52,10 +38,19 @@ class TestStringMethods(unittest.TestCase):
                         logging.debug(path)
 
     def test_directory_change(self):
-        a = Path(r"D:\icon_list\black-24dp (2)\2x\filename~~.dcm")
+        # file_path = Path(r"D:\icon_list\black-24dp (2)\2x\filename~~.dcm")
+        file_path = Path(r"D:\hello.dcm")
         output_path = r"D:\modified"
-        if len(a.parts()) == 2:  # mean D:\\file.dcm
-            pass
+
+        count_parts = len(file_path.parts)
+        if count_parts == 2:
+            output_path = os.path.join(output_path, file_path.parts[1])
+        elif count_parts > 2:
+            for p in range(1, count_parts):
+                output_path = os.path.join(output_path, file_path.parts[p])
+        else:
+            pass  # something wrong loaded file path
+        aa = 1
 
     def test_load_with_hex(self):
         hex_tag = "0x0010, 0x0040"
@@ -63,6 +58,12 @@ class TestStringMethods(unittest.TestCase):
         ds = dcmread(r"G:\아이디\SERIES1\0")
         a = ds[f, s].value
         print(a)
+
+    def test_check_directory(self):
+        output_path = r"G:\220805\05\1-12949\123454\085633\I.1.2.410.200038.20220805.085633.123454.1.001.001.bmp"
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+        aa = 3
 
 
 if __name__ == "__main__":
