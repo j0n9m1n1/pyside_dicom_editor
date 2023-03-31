@@ -1,24 +1,15 @@
-import sys, os
+import sys, os, time, pickle
+from threading import Thread
 from pydicom import dcmread
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 
-list_tag = [
-    "PatientID",
-    "PatientName",
-    "PatientBirthDate",
-    "PatientAge",
-    "StudyDate",
-    "StudyTime",
-    "SeriesDate",
-    "SeriesTime",
-    "ContentDate",
-    "ContentTime",
-    "StudyInstanceUID",
-    "SOPInstanceUID",
-    "WindowCenter",
-    "WindowWidth",
-]
+with open("list_current_tags.pickle", "rb") as f:
+    list_current_tags = pickle.load(f)  # (파일)
+
+with open("list_available_tags.pickle", "rb") as f:
+    list_available_tags = pickle.load(f)  # (파일)
+
 list_ds = list()
 list_files = list()
 
@@ -28,7 +19,8 @@ class MainWindow(QMainWindow):
         super(MainWindow, self).__init__()
 
         self.ui_init()
-        self.ui_setup()
+        self.ui_init2()
+        self.focus_list_widget = None
 
     def ui_init(self):
         self.tab_widget = QTabWidget()
@@ -39,7 +31,7 @@ class MainWindow(QMainWindow):
 
         self.table_widget_image = QTableWidget()
         self.list_widget_log = QListWidget()
-        self.progress_image = QProgressBar()
+        self.progress_bar = QProgressBar()
 
         self.label_source_path = QLabel()
         self.line_edit_source_path = QLineEdit()
@@ -51,28 +43,39 @@ class MainWindow(QMainWindow):
 
         self.button_load_files = QPushButton()
 
-        self.button_save = QPushButton()
+        self.button_save_dcm = QPushButton()
         self.button_clear = QPushButton()
 
-        self.label_tags = [QLabel() for x in range(len(list_tag))]
-        self.line_edit_tags = [QLineEdit() for x in range(len(list_tag))]
+        self.label_tags = [QLabel() for x in range(len(list_current_tags))]
+        self.line_edit_tags = [
+            QLineEdit() for x in range(len(list_current_tags))
+        ]
 
         self.tab2 = QWidget()
         self.grid_layout2 = QGridLayout()
-        self.label_tag_list = QLabel()
-        self.list_widget_tag = QListWidget()
+
+        self.label_current_tags = QLabel()
+        self.label_available_tags = QLabel()
+
+        self.list_widget_current_tags = QListWidget()
+        self.list_widget_available_tags = QListWidget()
+
         self.line_edit_tag = QLineEdit()
+
         self.button_tag_add = QPushButton()
         self.button_tag_delete = QPushButton()
         self.button_tag_up = QPushButton()
         self.button_tag_down = QPushButton()
+        self.button_tag_move_to_current = QPushButton()
+        self.button_tag_move_to_available = QPushButton()
+        self.button_save_tag = QPushButton()
 
-    def ui_setup(self):
-        count_list_tag = len(list_tag)
+    def ui_init2(self):
+        count_list_tag = len(list_current_tags)
         self.tab_widget.addTab(self.tab, "Edit")
 
-        self.table_widget_image.setColumnCount(len(list_tag))
-        self.table_widget_image.setHorizontalHeaderLabels(list_tag)
+        self.table_widget_image.setColumnCount(len(list_current_tags))
+        self.table_widget_image.setHorizontalHeaderLabels(list_current_tags)
         self.table_widget_image.setRowCount(50)
 
         self.label_source_path.setText("Source")
@@ -87,13 +90,17 @@ class MainWindow(QMainWindow):
         self.button_load_files.setText("Load")
         self.button_load_files.clicked.connect(self.button_clicked_load_files)
 
-        self.button_save.setText("Save")
-        self.button_save.clicked.connect(self.button_clicked_save)
+        self.button_save_dcm.setText("Save")
+        self.button_save_dcm.clicked.connect(self.button_clicked_save)
+
         self.button_clear.setText("Clear")
         self.button_clear.clicked.connect(self.button_clicked_clear)
 
         # 호기심 해결겸 list comp
-        [self.label_tags[i].setText(tag) for i, tag in enumerate(list_tag)]
+        [
+            self.label_tags[i].setText(tag)
+            for i, tag in enumerate(list_current_tags)
+        ]
 
         self.grid_layout.addWidget(self.label_source_path, 0, 0)
         self.grid_layout.addWidget(self.line_edit_source_path, 0, 1)
@@ -129,41 +136,70 @@ class MainWindow(QMainWindow):
 
         # 4하면 부족하고, 5하면 넘치고??, 4가 맞음
         self.grid_layout.addWidget(
-            self.progress_image, count_list_tag + 1, 0, 1, 4
+            self.progress_bar, count_list_tag + 1, 0, 1, 4
         )
-        self.grid_layout.addWidget(self.button_save, count_list_tag + 1, 4)
+
+        self.grid_layout.addWidget(self.button_save_dcm, count_list_tag + 1, 4)
         self.grid_layout.addWidget(self.button_clear, count_list_tag + 1, 5)
 
         self.tab.setLayout(self.grid_layout)
 
         self.tab_widget.addTab(self.tab2, "Setting")
-        self.label_tag_list.setText("Tag List")
-        self.list_widget_tag.addItems(list_tag)
+
+        self.label_current_tags.setText("Current Tags")
+        self.label_available_tags.setText("Available Tags")
+
+        self.list_widget_current_tags.itemClicked.connect(
+            self.list_widget_current_tags_item_clicked
+        )
+        self.list_widget_available_tags.itemClicked.connect(
+            self.list_widget_available_tags_item_clicked
+        )
+        self.list_widget_current_tags.addItems(list_current_tags)
+        self.list_widget_available_tags.addItems(list_available_tags)
 
         self.button_tag_add.setText("Add")
+        self.button_tag_add.clicked.connect(self.button_clicked_tag_add)
         self.button_tag_delete.setText("Delete")
+        self.button_tag_delete.clicked.connect(self.button_clicked_tag_delete)
         self.button_tag_up.setText("Up")
+        self.button_tag_up.clicked.connect(self.button_clicked_tag_up)
         self.button_tag_down.setText("Down")
+        self.button_tag_down.clicked.connect(self.button_clicked_tag_down)
+        self.button_save_tag.setText("Save")
+        self.button_save_tag.clicked.connect(self.button_clicked_tag_save)
+        self.button_tag_move_to_current.setText("Move to Current")
+        self.button_tag_move_to_current.clicked.connect(
+            self.button_clicked_tag_move_to_current
+        )
+        self.button_tag_move_to_available.setText("Move to Available")
+        self.button_tag_move_to_available.clicked.connect(
+            self.button_clicked_tag_move_to_available
+        )
 
-        self.grid_layout2.addWidget(self.label_tag_list, 0, 0)
-        self.grid_layout2.addWidget(self.list_widget_tag, 1, 0, 5, 1)
-        self.grid_layout2.addWidget(self.line_edit_tag, 1, 1)
+        self.grid_layout2.addWidget(self.label_current_tags, 0, 0)
+        self.grid_layout2.addWidget(self.list_widget_current_tags, 1, 0)
 
-        self.grid_layout2.addWidget(self.button_tag_add, 2, 1)
-        self.grid_layout2.addWidget(self.button_tag_delete, 3, 1)
-        self.grid_layout2.addWidget(self.button_tag_up, 4, 1)
-        self.grid_layout2.addWidget(self.button_tag_down, 5, 1)
+        self.grid_layout2.addWidget(self.label_available_tags, 0, 1)
+        self.grid_layout2.addWidget(self.list_widget_available_tags, 1, 1)
+
+        self.grid_layout2.addWidget(self.line_edit_tag, 1, 2)
+        self.grid_layout2.addWidget(self.button_tag_add, 2, 2)
+        self.grid_layout2.addWidget(self.button_tag_delete, 3, 2)
+        self.grid_layout2.addWidget(self.button_tag_up, 4, 2)
+        self.grid_layout2.addWidget(self.button_tag_down, 5, 2)
+        self.grid_layout2.addWidget(self.button_save_tag, 6, 2)
+        self.grid_layout2.addWidget(self.button_tag_move_to_current, 7, 2)
+        self.grid_layout2.addWidget(self.button_tag_move_to_available, 8, 2)
 
         self.tab2.setLayout(self.grid_layout2)
 
-        # self.setFixedWidth(800)
-        # self.setFixedHeight(600)
         self.setCentralWidget(self.tab_widget)
         self.setWindowTitle("DICOM Header Editor")
 
     def button_clicked_load_files(self):
-        input_path = self.line_edit_source_path.text()
-        self.insert_file_list_to_table_widget(input_path)
+        self.t1 = Thread(target=self.insert_file_list_to_table_widget)
+        self.t1.start()
 
     def button_clicked_save(self):
         if not os.path.exists(self.line_edit_target_path.text()):
@@ -171,7 +207,7 @@ class MainWindow(QMainWindow):
 
         list_selected_index = self.table_widget_image.selectedIndexes()
         for i, item in enumerate(list_selected_index):
-            for j, tag in enumerate(list_tag):
+            for j, tag in enumerate(list_current_tags):
                 if self.line_edit_tags[j].text() != "":
                     print(
                         f"[{tag}]Before: {list_ds[item.row()][tag].value}",
@@ -189,29 +225,108 @@ class MainWindow(QMainWindow):
                         )
                     )
 
+    def list_widget_current_tags_item_clicked(self):
+        self.focus_list_widget = self.list_widget_current_tags
+
+    def list_widget_available_tags_item_clicked(self):
+        self.focus_list_widget = self.list_widget_available_tags
+
     def reload_table_widget(self):
         pass
 
-    def load_progress_bar(self):
+    def button_clicked_tag_add(self):
         pass
 
+    def button_clicked_tag_delete(self):
+        current_row = self.focus_list_widget.currentRow()
+
+        self.focus_list_widget.takeItem(current_row)
+
+        if current_row != self.focus_list_widget.count():
+            self.focus_list_widget.setCurrentRow(current_row)
+        else:
+            self.focus_list_widget.setCurrentRow(current_row - 1)
+
+        self.focus_list_widget.setFocus()
+
+    def button_clicked_tag_up(self):
+        current_row = self.focus_list_widget.currentRow()
+
+        if current_row != 0:
+            selected_item = self.focus_list_widget.currentItem()
+            above_item = self.focus_list_widget.itemAt(current_row - 1, 0)
+
+            self.focus_list_widget.takeItem(current_row)
+            self.focus_list_widget.insertItem(current_row, above_item)
+            self.focus_list_widget.insertItem(current_row - 1, selected_item)
+            self.focus_list_widget.setCurrentRow(current_row - 1)
+
+        self.focus_list_widget.setFocus()
+
+    def button_clicked_tag_down(self):
+        current_row = self.focus_list_widget.currentRow()
+
+        if current_row is not self.focus_list_widget.count() - 1:
+            selected_item = self.focus_list_widget.currentItem()
+            below_item = self.focus_list_widget.itemAt(current_row + 1, 0)
+
+            self.focus_list_widget.takeItem(current_row)
+            self.focus_list_widget.insertItem(current_row, below_item)
+            self.focus_list_widget.insertItem(current_row + 1, selected_item)
+            self.focus_list_widget.setCurrentRow(current_row + 1)
+
+        self.focus_list_widget.setFocus()
+
+    def button_clicked_tag_save(self):
+        with open("list_current_tags.pickle", "wb") as f:
+            pickle.dump(list_current_tags, f)
+
+        with open("list_available_tags.pickle", "wb") as f:
+            pickle.dump(list_available_tags, f)
+
+    def button_clicked_tag_move_to_current(self):
+        if self.focus_list_widget != self.list_widget_current_tags:
+            current_row = self.focus_list_widget.currentRow()
+            selected_item = self.focus_list_widget.currentItem()
+            self.focus_list_widget.takeItem(current_row)
+            self.list_widget_current_tags.addItem(selected_item)
+            self.list_widget_current_tags.setCurrentRow(
+                self.list_widget_current_tags.count() - 1
+            )
+        self.focus_list_widget.setFocus()
+
+    def button_clicked_tag_move_to_available(self):
+        if self.focus_list_widget != self.list_widget_available_tags:
+            current_row = self.focus_list_widget.currentRow()
+            selected_item = self.focus_list_widget.currentItem()
+            self.focus_list_widget.takeItem(current_row)
+            self.list_widget_available_tags.addItem(selected_item)
+            self.list_widget_available_tags.setCurrentRow(
+                self.list_widget_available_tags.count() - 1
+            )
+        self.focus_list_widget.setFocus()
+
     def save_progress_bar(self):
+        pass
+
+    def find_tag(self):
         pass
 
     def fetch_next(self):
         pass
 
     def button_clicked_clear(self):
-        [self.line_edit_tags[i].clear() for i in range(len(list_tag))]
+        [self.line_edit_tags[i].clear() for i in range(len(list_current_tags))]
         self.line_edit_tags[0].setFocus()
 
-    def insert_file_list_to_table_widget(self, path):
+    def insert_file_list_to_table_widget(self):
+        path = self.line_edit_source_path.text()
         self.table_widget_image.clear()
         list_ds.clear()
 
         b_check_pixel_data = self.check_load_pixel_data.isChecked()
-        self.table_widget_image.setColumnCount(len(list_tag))
-        self.table_widget_image.setHorizontalHeaderLabels(list_tag)
+        self.table_widget_image.setColumnCount(len(list_current_tags))
+        self.table_widget_image.setHorizontalHeaderLabels(list_current_tags)
 
         # 구조가 복잡한 경우도 있어서 walk로 바꿈
         # 근데 확장자가 아예 없는 경우도 있어서 고민중
@@ -235,13 +350,20 @@ class MainWindow(QMainWindow):
                     force=True,
                 )
             )
-
-            for j, tag in enumerate(list_tag):
+            # self.progress_bar.setUpdatesEnabled(True)
+            # self.progress_bar.setValue(int(i / len(list_files)) * 100)
+            # print(int((i / (len(list_files) - 1) * 100)))
+            # 499, 500(-1), 0.98(*100)
+            self.progress_bar.setValue(int((i / (len(list_files) - 1) * 100)))
+            self.progress_bar.update()
+            for j, tag in enumerate(list_current_tags):
                 try:
                     self.table_widget_image.setItem(
                         i,
                         j,
-                        QTableWidgetItem(str(list_ds[i][list_tag[j]].value)),
+                        QTableWidgetItem(
+                            str(list_ds[i][list_current_tags[j]].value)
+                        ),
                     )
                 except KeyError:
                     self.table_widget_image.setItem(
@@ -250,15 +372,11 @@ class MainWindow(QMainWindow):
                         QTableWidgetItem(""),
                     )
 
-        # self.table_widget.horizontalHeader().setSectionResizeMode(
-        #     QHeaderView.
-        # )
-
 
 app = QApplication(sys.argv)
 window = MainWindow()
 window.show()
-app.exec_()
+app.exec()
 
 # G:\STORAGE\STO01\2022\02\15\CR\
 # 00023010_2022-02-15_145906_CR\
