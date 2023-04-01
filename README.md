@@ -2,4 +2,4 @@
 
 python3 3.10.10 64bit
 
-pip3 install pydicom, PySide6
+pip3 install pydicom, PySide6, Image
