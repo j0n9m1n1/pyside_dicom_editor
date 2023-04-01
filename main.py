@@ -5,10 +5,33 @@ from pydicom import dcmread
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 
+MAX_LOAD_COUNT = 500
+
+
+class LoadingFiles(QThread):
+    tt = Signal()
+
+    def __init__(self):
+        super().__init__()
+
+    def run(self):
+        pass
+
+
+class LoadDataset(QThread):
+    tt = Signal()
+
+    def __init__(self):
+        super().__init()
+
+    def run(self):
+        pass
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
+
         self.list_ds = list()
         self.list_files = list()
         self.list_current_tags = list()
@@ -74,6 +97,15 @@ class MainWindow(QMainWindow):
         self.button_save_tag = QPushButton()
 
     def ui_init2(self):
+        self.table_widget_dicom.setSelectionBehavior(
+            QAbstractItemView.SelectRows
+        )
+        self.table_widget_dicom.doubleClicked.connect(
+            self.table_widget_dicom_double_clicked
+        )
+        self.table_widget_dicom.setEditTriggers(
+            QAbstractItemView.NoEditTriggers
+        )
         count_list_tag = len(self.list_current_tags)
         self.tab_widget.addTab(self.tab, "Edit")
 
@@ -231,6 +263,9 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tab_widget)
         self.setWindowTitle("DICOM Header Editor")
 
+    def table_widget_dicom_double_clicked(self):
+        print("dbl", self.table_widget_dicom.currentRow())
+
     def load_tag_files(self):
         with open("list_current_tags.pickle", "rb") as f:
             self.list_current_tags = pickle.load(f)  # (파일)
@@ -358,9 +393,6 @@ class MainWindow(QMainWindow):
     def reload_table_widget(self):
         pass
 
-    def save_progress_bar(self):
-        pass
-
     def find_tag(self):
         pass
 
@@ -385,27 +417,18 @@ class MainWindow(QMainWindow):
     def button_clicked_tag_up(self):
         current_row = self.focus_list_widget.currentRow()
 
-        if current_row != 0:
-            selected_item = self.focus_list_widget.currentItem()
-            above_item = self.focus_list_widget.itemAt(0, current_row - 1)
-
-            self.focus_list_widget.takeItem(current_row)
-            self.focus_list_widget.insertItem(current_row, above_item)
+        if current_row > 0:
+            selected_item = self.focus_list_widget.takeItem(current_row)
             self.focus_list_widget.insertItem(current_row - 1, selected_item)
             self.focus_list_widget.setCurrentRow(current_row - 1)
 
         self.focus_list_widget.setFocus()
 
-    # 0번째 아이템 down이 안됨, 이해X
     def button_clicked_tag_down(self):
         current_row = self.focus_list_widget.currentRow()
 
-        if current_row != self.focus_list_widget.count() - 1:
-            selected_item = self.focus_list_widget.currentItem()
-            below_item = self.focus_list_widget.itemAt(0, current_row + 1)
-
-            self.focus_list_widget.takeItem(current_row)
-            self.focus_list_widget.insertItem(current_row, below_item)
+        if current_row < self.focus_list_widget.count() - 1:
+            selected_item = self.focus_list_widget.takeItem(current_row)
             self.focus_list_widget.insertItem(current_row + 1, selected_item)
             self.focus_list_widget.setCurrentRow(current_row + 1)
 
@@ -465,6 +488,7 @@ class MainWindow(QMainWindow):
         )
 
     def insert_file_list_to_table_widget(self):
+        self.button_load_files.setEnabled(False)
         path = self.line_edit_source_path.text()
 
         self.table_widget_dicom.clear()
@@ -483,7 +507,7 @@ class MainWindow(QMainWindow):
                 for file_name in files:
                     if (
                         file_name.lower().endswith("dcm")
-                        and len(self.list_files) < 500
+                        and len(self.list_files) < MAX_LOAD_COUNT
                     ):
                         self.list_files.append(os.path.join(root, file_name))
         print(len(self.list_files))
@@ -497,10 +521,6 @@ class MainWindow(QMainWindow):
                     force=True,
                 )
             )
-            # self.progress_bar.setUpdatesEnabled(True)
-            # self.progress_bar.setValue(int(i / len(list_files)) * 100)
-            # print(int((i / (len(list_files) - 1) * 100)))
-            # 499 + 1, 500, 0.98(*100)
 
             self.progress_bar.setValue(
                 int(((i + 1) / (len(self.list_files)) * 100))
@@ -533,6 +553,7 @@ class MainWindow(QMainWindow):
                         j,
                         QTableWidgetItem(""),
                     )
+        self.button_load_files.setEnabled(True)
 
 
 app = QApplication(sys.argv)
