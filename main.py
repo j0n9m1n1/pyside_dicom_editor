@@ -1,24 +1,81 @@
 import sys, os, time, pickle
+import PIL.Image
+import numpy as np
 from pathlib import Path
 from threading import Thread
 from pydicom import dcmread
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
+import qdarkstyle
 
 MAX_LOAD_COUNT = 500
 
 
-class LoadingFiles(QThread):
-    tt = Signal()
+class LoadDcmThread(QThread):
+    load_dcm_done_signal = Signal(list, list)
+    update_table_widget_signal = Signal(int, int, str)
+    progress_bar_update_signal = Signal(int, int)
 
-    def __init__(self):
+    def __init__(self, source_path, list_current_tags, b_check_pixel_data):
         super().__init__()
+        self.list_files = list()
+        self.list_ds = list()
+
+        self.source_path = source_path
+        self.list_current_tags = list_current_tags
+        self.b_check_pixel_data = b_check_pixel_data
 
     def run(self):
-        pass
+        for root, dirs, files in os.walk(self.source_path):
+            if len(files) > 0:
+                for file_name in files:
+                    if (
+                        file_name.lower().endswith("dcm")
+                        and len(self.list_files) < MAX_LOAD_COUNT
+                    ):
+                        self.list_files.append(os.path.join(root, file_name))
+
+        total = len(self.list_files)
+        for i, file_path in enumerate(self.list_files):
+            self.list_ds.append(
+                dcmread(
+                    file_path,
+                    stop_before_pixels=not self.b_check_pixel_data,
+                    force=True,
+                )
+            )
+            self.progress_bar_update_signal.emit(i + 1, total)
+            for j, tag in enumerate(self.list_current_tags):
+                try:
+                    if "," in tag:
+                        f, s = map(
+                            lambda z: int(z, 16),
+                            tag.replace(" ", "").split(","),
+                        )
+                        self.update_table_widget_signal.emit(
+                            i,
+                            j,
+                            str(self.list_ds[i][f, s].value),
+                        )
+
+                    else:
+                        # QMetaObject.invokeMethod(Q_ARG(int, i))
+                        self.update_table_widget_signal.emit(
+                            i,
+                            j,
+                            str(self.list_ds[i][tag].value),
+                        )
+                except KeyError:
+                    self.update_table_widget_signal.emit(
+                        i,
+                        j,
+                        "",
+                    )
+
+        self.load_dcm_done_signal.emit(self.list_files, self.list_ds)
 
 
-class LoadDataset(QThread):
+class SaveFiles(QThread):
     tt = Signal()
 
     def __init__(self):
@@ -61,7 +118,7 @@ class MainWindow(QMainWindow):
 
         self.check_load_pixel_data = QCheckBox()
 
-        self.button_load_files = QPushButton()
+        self.button_load_file = QPushButton()
 
         self.button_select_source_dir = QPushButton()
         self.button_select_target_dir = QPushButton()
@@ -113,7 +170,7 @@ class MainWindow(QMainWindow):
         self.table_widget_dicom.setHorizontalHeaderLabels(
             self.list_current_tags
         )
-        self.table_widget_dicom.setRowCount(50)
+        # self.table_widget_dicom.setRowCount(50)
 
         self.label_source_path.setText("Source")
         # self.line_edit_source_path.setText(r"/users/j0n9m1n1/vscode/python/dicom_samples")
@@ -135,8 +192,8 @@ class MainWindow(QMainWindow):
             self.button_clicked_select_target_path
         )
 
-        self.button_load_files.setText("Load")
-        self.button_load_files.clicked.connect(self.button_clicked_load_files)
+        self.button_load_file.setText("Load")
+        self.button_load_file.clicked.connect(self.load_dcm)
 
         self.button_save_dcm.setText("Save")
         self.button_save_dcm.clicked.connect(self.button_clicked_save)
@@ -159,7 +216,7 @@ class MainWindow(QMainWindow):
         self.grid_layout.addWidget(self.button_select_target_dir, 0, 5)
 
         self.grid_layout.addWidget(self.check_load_pixel_data, 0, 6)
-        self.grid_layout.addWidget(self.button_load_files, 0, 7)
+        self.grid_layout.addWidget(self.button_load_file, 0, 7)
 
         # 호기심 해결겸 list comp
         [
@@ -263,8 +320,72 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.tab_widget)
         self.setWindowTitle("DICOM Header Editor")
 
+    # https://github.com/pydicom/contrib-pydicom/blob/master/viewers/pydicom_PIL.py
+    def get_LUT_value(self, data, window, level):
+        """Apply the RGB Look-Up Table for the given
+        data and window/level value."""
+        return np.piecewise(
+            data,
+            [
+                data <= (level - 0.5 - (window - 1) / 2),
+                data > (level - 0.5 + (window - 1) / 2),
+            ],
+            [
+                0,
+                255,
+                lambda data: ((data - (level - 0.5)) / (window - 1) + 0.5)
+                * (255 - 0),
+            ],
+        )
+
+    # https://github.com/pydicom/contrib-pydicom/blob/master/viewers/pydicom_PIL.py
     def table_widget_dicom_double_clicked(self):
-        print("dbl", self.table_widget_dicom.currentRow())
+        row = self.table_widget_dicom.currentRow()
+        if "PixelData" not in self.list_ds[row]:
+            raise TypeError(
+                "Cannot show image -- DICOM dataset does not have " "pixel data"
+            )
+        # can only apply LUT if these window info exists
+        if ("WindowWidth" not in self.list_ds[row]) or (
+            "WindowCenter" not in self.list_ds[row]
+        ):
+            bits = self.list_ds[row].BitsAllocated
+            samples = self.list_ds[row].SamplesPerPixel
+            if bits == 8 and samples == 1:
+                mode = "L"
+            elif bits == 8 and samples == 3:
+                mode = "RGB"
+            elif bits == 16:
+                # not sure about this -- PIL source says is 'experimental'
+                # and no documentation. Also, should bytes swap depending
+                # on endian of file and system??
+                mode = "I;16"
+            else:
+                raise TypeError(
+                    "Don't know PIL mode for %d BitsAllocated "
+                    "and %d SamplesPerPixel" % (bits, samples)
+                )
+
+            # PIL size = (width, height)
+            size = (self.list_ds[row].Columns, self.list_ds[row].Rows)
+
+            # Recommended to specify all details
+            # by http://www.pythonware.com/library/pil/handbook/image.htm
+            im = PIL.Image.frombuffer(
+                mode, size, self.list_ds[row].PixelData, "raw", mode, 0, 1
+            )
+
+        else:
+            ew = self.list_ds[row]["WindowWidth"]
+            ec = self.list_ds[row]["WindowCenter"]
+            ww = int(ew.value[0] if ew.VM > 1 else ew.value)
+            wc = int(ec.value[0] if ec.VM > 1 else ec.value)
+            image = self.get_LUT_value(self.list_ds[row].pixel_array, ww, wc)
+            # Convert mode to L since LUT has only 256 values:
+            #   http://www.pythonware.com/library/pil/handbook/image.htm
+            im = PIL.Image.fromarray(image).convert("L")
+            im.show()
+        # return im
 
     def load_tag_files(self):
         with open("list_current_tags.pickle", "rb") as f:
@@ -488,7 +609,7 @@ class MainWindow(QMainWindow):
         )
 
     def insert_file_list_to_table_widget(self):
-        self.button_load_files.setEnabled(False)
+        self.button_load_file.setEnabled(False)
         path = self.line_edit_source_path.text()
 
         self.table_widget_dicom.clear()
@@ -553,15 +674,51 @@ class MainWindow(QMainWindow):
                         j,
                         QTableWidgetItem(""),
                     )
-        self.button_load_files.setEnabled(True)
+        self.button_load_file.setEnabled(True)
+
+    def load_dcm(self):
+        self.tab.setEnabled(False)
+        b_check_pixel_data = self.check_load_pixel_data.isChecked()
+        source_path = self.line_edit_source_path.text()
+
+        self.load_dcm_thread = LoadDcmThread(
+            source_path,
+            self.list_current_tags,
+            b_check_pixel_data,
+        )
+        self.load_dcm_thread.load_dcm_done_signal.connect(
+            self.load_dcm_done_slot
+        )
+        self.load_dcm_thread.update_table_widget_signal.connect(
+            self.update_table_widget_slot
+        )
+        self.load_dcm_thread.progress_bar_update_signal.connect(
+            self.update_progress_bar_slot
+        )
+
+        self.load_dcm_thread.start()
+        # self.load_dcm_thread.wait()
+
+    def load_dcm_done_slot(self, list_file, list_ds):
+        self.list_ds = list_ds
+        self.list_file = list_file
+        self.tab.setEnabled(True)
+
+    def update_table_widget_slot(self, row, column, item):
+        self.table_widget_dicom.setRowCount(row + 1)
+        self.table_widget_dicom.setItem(
+            row, column, QTableWidgetItem(str(item))
+        )
+
+    def update_progress_bar_slot(self, i, total):
+        self.progress_bar.setValue(int((i / total * 100)))
+        self.progress_bar.setFormat(
+            f"Reading {i}/{total} {self.progress_bar.value()}%"
+        )
 
 
 app = QApplication(sys.argv)
+app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api="pyside6"))
 window = MainWindow()
 window.show()
 app.exec()
-
-# G:\STORAGE\STO01\2022\02\15\CR\
-# 00023010_2022-02-15_145906_CR\
-# 00023010_2022-02-15_145906_CR\
-# 1.2.643.18619941.103772.92022215.91453560.1.4.4.dcm
