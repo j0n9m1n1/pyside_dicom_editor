@@ -1,3 +1,4 @@
+# pyinstaller -F --hiddenimport=pydicom.encoders.gdcm --hiddenimport=pydicom.encoders.pylibjpeg --onefile --console main.py
 import sys, os, time, pickle
 import PIL.Image
 import numpy as np
@@ -9,7 +10,6 @@ from PySide6.QtWidgets import *
 import qdarkstyle
 
 MAX_LOAD_COUNT = 500
-
 
 class LoadDcmThread(QThread):
     load_dcm_done_signal = Signal(list, list)
@@ -26,6 +26,7 @@ class LoadDcmThread(QThread):
         self.b_check_pixel_data = b_check_pixel_data
 
     def run(self):
+        # mostly scandir is faster than os.walk
         for root, dirs, files in os.walk(self.source_path):
             if len(files) > 0:
                 for file_name in files:

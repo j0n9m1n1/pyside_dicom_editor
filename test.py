@@ -1,4 +1,5 @@
 import unittest
+import time
 import os, sys
 from pydicom import dcmread
 import logging
@@ -64,6 +65,25 @@ class TestStringMethods(unittest.TestCase):
         if not os.path.exists(output_path):
             os.makedirs(output_path)
         aa = 3
+
+    def test_walk(self):
+        list_files = []
+        for root, dirs, files in os.walk(r"G:\STORAGE"):
+            if len(files) > 0:
+                for file_name in files:
+                    if file_name.lower().endswith("dcm"):
+                        list_files.append(os.path.join(root, file_name))
+
+    def test_scan_files_recursively(self, folder_path=r"G:\STORAGE"):
+        list_files = []
+        for entry in os.scandir(folder_path):
+            if (
+                entry.is_file()
+                and os.path.splitext(entry.name)[1].lower() == ".dcm"
+            ):
+                list_files.append(os.path.join(r"G:\STORAGE", entry.name))
+            elif entry.is_dir():
+                self.test_scan_files_recursively(entry.path)
 
 
 if __name__ == "__main__":
