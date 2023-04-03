@@ -88,7 +88,7 @@ class SaveFiles(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-
+        config.deb
         self.list_ds = list()
         self.list_files = list()
         self.list_current_tags = list()
