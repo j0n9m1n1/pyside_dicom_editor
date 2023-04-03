@@ -413,6 +413,7 @@ class MainWindow(QMainWindow):
 
         self.dialog_view.setWindowTitle("Simple view")
         self.vbox_layout_view.addWidget(self.tab_view)
+        self.vbox_layout_view.setAlignment(Qt.AlignCenter)
         self.dialog_view.setLayout(self.vbox_layout_view)
 
         self.setCentralWidget(self.tab_widget)
@@ -510,6 +511,7 @@ class MainWindow(QMainWindow):
         self.tab_view.addTab(
             label, str(row) + "_" + self.list_ds[row]["PatientID"].value
         )
+
         self.tab_view.setCurrentIndex(self.tab_view.count() - 1)
         self.dialog_view.show()
         self.dialog_view.raise_()
