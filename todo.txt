@@ -1,1 +1,5 @@
 tab 별로 클래스 나누기
+save도 Qthread로
+image load시 dialog 띄우기, 추가로 띄우면 tab에 추가하기
+limit 걸고 next누르면 더 가져오는 기능 추가
+로그 listwidget에 값 좀 넣기

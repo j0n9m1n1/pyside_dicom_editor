@@ -1,10 +1,11 @@
 # pyinstaller -F --hiddenimport=pydicom.encoders.gdcm --hiddenimport=pydicom.encoders.pylibjpeg --onefile --console main.py
 import sys, os, time, pickle
-import PIL.Image
+from PIL import Image, ImageQt
 import numpy as np
 from pathlib import Path
 from threading import Thread
 from pydicom import dcmread
+from PySide6.QtGui import *
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
 import qdarkstyle
@@ -89,7 +90,7 @@ class SaveFiles(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-
+        
         self.list_ds = list()
         self.list_files = list()
         self.list_current_tags = list()
@@ -341,6 +342,7 @@ class MainWindow(QMainWindow):
 
     # https://github.com/pydicom/contrib-pydicom/blob/master/viewers/pydicom_PIL.py
     def table_widget_dicom_double_clicked(self):
+
         row = self.table_widget_dicom.currentRow()
         if "PixelData" not in self.list_ds[row]:
             raise TypeError(
@@ -372,7 +374,7 @@ class MainWindow(QMainWindow):
 
             # Recommended to specify all details
             # by http://www.pythonware.com/library/pil/handbook/image.htm
-            im = PIL.Image.frombuffer(
+            im = Image.frombuffer(
                 mode, size, self.list_ds[row].PixelData, "raw", mode, 0, 1
             )
 
@@ -384,8 +386,14 @@ class MainWindow(QMainWindow):
             image = self.get_LUT_value(self.list_ds[row].pixel_array, ww, wc)
             # Convert mode to L since LUT has only 256 values:
             #   http://www.pythonware.com/library/pil/handbook/image.htm
-            im = PIL.Image.fromarray(image).convert("L")
-            im.show()
+            im = Image.fromarray(image).convert("L")
+            # im.show()
+        dlg = QDialog()
+        label = QLabel(dlg)
+        q_image = QPixmap.fromImage(ImageQt.ImageQt(im))
+        label.setPixmap(q_image)
+        dlg.setGeometry(0, 0, q_image.width(), q_image.height())
+        dlg.exec_()
         # return im
 
     def load_tag_files(self):
@@ -440,7 +448,7 @@ class MainWindow(QMainWindow):
             # will be a checkbox option
             maintain_original_directory_structure = False
 
-            file_path = Path(self.list_files[item.row()])
+            file_path = Path(self.list_file[item.row()])
 
             if maintain_original_directory_structure:
                 output_path = self.line_edit_target_path
