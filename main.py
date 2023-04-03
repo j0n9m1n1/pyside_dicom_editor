@@ -411,6 +411,10 @@ class MainWindow(QMainWindow):
 
         self.tab2.setLayout(self.grid_layout2)
 
+        self.dialog_view.setWindowTitle("Simple view")
+        self.vbox_layout_view.addWidget(self.tab_view)
+        self.dialog_view.setLayout(self.vbox_layout_view)
+
         self.setCentralWidget(self.tab_widget)
         self.setWindowTitle("DICOM Header Editor")
 
@@ -433,7 +437,7 @@ class MainWindow(QMainWindow):
         )
 
     # https://github.com/pydicom/contrib-pydicom/blob/master/viewers/pydicom_PIL.py
-    def table_widget_dicom_double_clicked(self):
+    def get_image(self):
         row = self.table_widget_dicom.currentRow()
         if "PixelData" not in self.list_ds[row]:
             raise TypeError(
@@ -478,14 +482,37 @@ class MainWindow(QMainWindow):
             # Convert mode to L since LUT has only 256 values:
             #   http://www.pythonware.com/library/pil/handbook/image.htm
             im = Image.fromarray(image).convert("L")
-            # im.show()
-        dlg = QDialog()
-        label = QLabel(dlg)
-        q_image = QPixmap.fromImage(ImageQt.ImageQt(im))
+        return im
+
+    def table_widget_dicom_double_clicked(self):
+        row = self.table_widget_dicom.currentRow()
+
+        image = self.get_image()
+        q_image = QPixmap.fromImage(ImageQt.ImageQt(image))
+        label = QLabel()
         label.setPixmap(q_image)
-        dlg.setGeometry(0, 0, q_image.width(), q_image.height())
-        dlg.exec_()
-        # return im
+        label.setFixedSize(q_image.width(), q_image.height())
+
+        screen = app.primaryScreen()
+        size = screen.size()
+        width = size.width() * 0.8
+        height = size.height() * 0.8
+
+        # self.dialog_view.setMaximumSize(width, height)
+
+        if q_image.width() > width or q_image.height() > height:
+            q_image = q_image.scaled(
+                width, height, Qt.KeepAspectRatio, Qt.FastTransformation
+            )
+            label.setPixmap(q_image)
+            label.setFixedSize(q_image.width(), q_image.height())
+
+        self.tab_view.addTab(
+            label, str(row) + "_" + self.list_ds[row]["PatientID"].value
+        )
+        self.tab_view.setCurrentIndex(self.tab_view.count() - 1)
+        self.dialog_view.show()
+        self.dialog_view.raise_()
 
     def load_tag_files(self):
         with open("list_current_tags.pickle", "rb") as f:
@@ -700,9 +727,11 @@ class MainWindow(QMainWindow):
             f"{name} {i}/{total} {self.progress_bar.value()}%"
         )
 
-    def show_pixel_data(self):
-        self.tabWidget.addTab
-        pass
+    def closeEvent(self, event):
+        for widget in QApplication.topLevelWidgets():
+            if isinstance(widget, QDialog):
+                widget.close()
+        event.accept()
 
 
 app = QApplication(sys.argv)
