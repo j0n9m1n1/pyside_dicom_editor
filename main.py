@@ -439,7 +439,7 @@ class MainWindow(QMainWindow):
             # will be a checkbox option
             maintain_original_directory_structure = False
 
-            file_path = Path(self.list_files[item.row()])
+            file_path = Path(self.list_file[item.row()])
 
             if maintain_original_directory_structure:
                 output_path = self.line_edit_target_path
