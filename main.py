@@ -12,10 +12,11 @@ import qdarkstyle
 
 MAX_LOAD_COUNT = 500
 
+
 class LoadDcmThread(QThread):
     load_dcm_done_signal = Signal(list, list)
     update_table_widget_signal = Signal(int, int, str)
-    progress_bar_update_signal = Signal(int, int)
+    progress_bar_update_signal = Signal(str, int, int)
 
     def __init__(self, source_path, list_current_tags, b_check_pixel_data):
         super().__init__()
@@ -46,7 +47,7 @@ class LoadDcmThread(QThread):
                     force=True,
                 )
             )
-            self.progress_bar_update_signal.emit(i + 1, total)
+            self.progress_bar_update_signal.emit("Reading", i + 1, total)
             for j, tag in enumerate(self.list_current_tags):
                 try:
                     if "," in tag:
@@ -77,20 +78,107 @@ class LoadDcmThread(QThread):
         self.load_dcm_done_signal.emit(self.list_files, self.list_ds)
 
 
-class SaveFiles(QThread):
-    tt = Signal()
+class SaveDcmThread(QThread):
+    save_dcm_done_signal = Signal()
+    progress_bar_update_signal = Signal(str, int, int)
 
-    def __init__(self):
-        super().__init()
+    def __init__(
+        self,
+        list_selected_index,
+        list_current_tags,
+        line_edit_tags,
+        list_ds,
+        list_file,
+        line_edit_target_path,
+    ):
+        super().__init__()
+        self.list_selected_index = list_selected_index
+        self.list_current_tags = list_current_tags
+        self.line_edit_tags = line_edit_tags
+        self.list_ds = list_ds
+        self.list_file = list_file
+        self.line_edit_target_path = line_edit_target_path
 
     def run(self):
-        pass
+        for i, item in enumerate(self.list_selected_index):
+            total = len(self.list_selected_index)
+            for j, tag in enumerate(self.list_current_tags):
+                try:
+                    if self.line_edit_tags[j].text() != "":
+                        if "," in tag:
+                            f, s = map(
+                                lambda z: int(z, 16),
+                                tag.replace(" ", "").split(","),
+                            )
+                            print(
+                                f"[{tag}]Before: {self.list_ds[item.row()][f, s].value}",
+                                end=" ",
+                            )
+                            self.list_ds[item.row()][
+                                f, s
+                            ].value = self.line_edit_tags[j].text()
+                            print(
+                                f"After: {self.list_ds[item.row()][f, s].value}"
+                            )
+                        else:
+                            print(
+                                f"[{tag}]Before: {self.list_ds[item.row()][tag].value}",
+                                end=" ",
+                            )
+                            self.list_ds[item.row()][
+                                tag
+                            ].value = self.line_edit_tags[j].text()
+                            print(
+                                f"After: {self.list_ds[item.row()][tag].value}"
+                            )
+                except Exception:
+                    pass
+            # will be a checkbox option
+            maintain_original_directory_structure = False
+
+            file_path = Path(self.list_file[item.row()])
+
+            if maintain_original_directory_structure:
+                output_path = self.line_edit_target_path
+
+                count_parts = len(file_path.parts)
+                if count_parts == 2:
+                    output_path = os.path.join(output_path, file_path.parts[1])
+                elif count_parts > 2:
+                    for p in range(1, count_parts):
+                        output_path = os.path.join(
+                            output_path, file_path.parts[p]
+                        )
+                else:
+                    pass  # something wrong loaded file path
+            else:
+                str_out_file_name = file_path.stem + file_path.suffix
+                output_path = os.path.join(
+                    self.line_edit_target_path,
+                    str_out_file_name,
+                )
+            try:
+                if not os.path.exists(os.path.dirname(output_path)):
+                    os.makedirs(os.path.dirname(output_path))
+
+                self.progress_bar_update_signal.emit("Saving", i + 1, total)
+                # self.progress_bar.setValue(
+                #     int(((i + 1) / len(self.list_selected_index) * 100))
+                # )
+                self.list_ds[item.row()].save_as(output_path)
+                # self.progress_bar.setFormat(
+                #     f"Saving {i+1}/{len(self.list_selected_index)} {self.progress_bar.value()}%"
+                # )
+                print(f"saved: {output_path}")
+            except:
+                pass
+        self.save_dcm_done_signal.emit()
 
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
-        
+
         self.list_ds = list()
         self.list_files = list()
         self.list_current_tags = list()
@@ -198,7 +286,7 @@ class MainWindow(QMainWindow):
         self.button_load_file.clicked.connect(self.load_dcm)
 
         self.button_save_dcm.setText("Save")
-        self.button_save_dcm.clicked.connect(self.button_clicked_save)
+        self.button_save_dcm.clicked.connect(self.save_dcm)
 
         self.button_clear.setText("Clear")
         self.button_clear.clicked.connect(self.button_clicked_clear)
@@ -342,7 +430,6 @@ class MainWindow(QMainWindow):
 
     # https://github.com/pydicom/contrib-pydicom/blob/master/viewers/pydicom_PIL.py
     def table_widget_dicom_double_clicked(self):
-
         row = self.table_widget_dicom.currentRow()
         if "PixelData" not in self.list_ds[row]:
             raise TypeError(
@@ -412,77 +499,7 @@ class MainWindow(QMainWindow):
         self.t2.start()
 
     def create_modified_dcm(self):
-        list_selected_index = self.table_widget_dicom.selectedIndexes()
-        for i, item in enumerate(list_selected_index):
-            for j, tag in enumerate(self.list_current_tags):
-                try:
-                    if self.line_edit_tags[j].text() != "":
-                        if "," in tag:
-                            f, s = map(
-                                lambda z: int(z, 16),
-                                tag.replace(" ", "").split(","),
-                            )
-                            print(
-                                f"[{tag}]Before: {self.list_ds[item.row()][f, s].value}",
-                                end=" ",
-                            )
-                            self.list_ds[item.row()][
-                                f, s
-                            ].value = self.line_edit_tags[j].text()
-                            print(
-                                f"After: {self.list_ds[item.row()][f, s].value}"
-                            )
-                        else:
-                            print(
-                                f"[{tag}]Before: {self.list_ds[item.row()][tag].value}",
-                                end=" ",
-                            )
-                            self.list_ds[item.row()][
-                                tag
-                            ].value = self.line_edit_tags[j].text()
-                            print(
-                                f"After: {self.list_ds[item.row()][tag].value}"
-                            )
-                except Exception:
-                    pass
-            # will be a checkbox option
-            maintain_original_directory_structure = False
-
-            file_path = Path(self.list_file[item.row()])
-
-            if maintain_original_directory_structure:
-                output_path = self.line_edit_target_path
-
-                count_parts = len(file_path.parts)
-                if count_parts == 2:
-                    output_path = os.path.join(output_path, file_path.parts[1])
-                elif count_parts > 2:
-                    for p in range(1, count_parts):
-                        output_path = os.path.join(
-                            output_path, file_path.parts[p]
-                        )
-                else:
-                    pass  # something wrong loaded file path
-            else:
-                str_out_file_name = file_path.stem + file_path.suffix
-                output_path = os.path.join(
-                    self.line_edit_target_path.text(),
-                    str_out_file_name,
-                )
-            try:
-                if not os.path.exists(os.path.dirname(output_path)):
-                    os.makedirs(os.path.dirname(output_path))
-
-                self.progress_bar.setValue(
-                    int(((i + 1) / len(list_selected_index) * 100))
-                )
-                self.list_ds[item.row()].save_as(output_path)
-                self.progress_bar.setFormat(
-                    f"Saving {i+1}/{len(list_selected_index)} {self.progress_bar.value()}%"
-                )
-                print(f"saved: {output_path}")
-            except:
-                pass
+        pass
 
     def button_clicked_select_source_path(self):
         directory = QFileDialog.getExistingDirectory(
@@ -617,74 +634,6 @@ class MainWindow(QMainWindow):
             self.list_current_tags
         )
 
-    def insert_file_list_to_table_widget(self):
-        self.button_load_file.setEnabled(False)
-        path = self.line_edit_source_path.text()
-
-        self.table_widget_dicom.clear()
-        self.list_ds.clear()
-        self.list_files.clear()
-
-        b_check_pixel_data = self.check_load_pixel_data.isChecked()
-
-        self.set_table_widget_headers()
-
-        # 구조가 복잡한 경우도 있어서 walk로 바꿈
-        # 근데 확장자가 아예 없는 경우도 있어서 고민중
-        # 일단 .dcm만
-        for root, dirs, files in os.walk(path):
-            if len(files) > 0:
-                for file_name in files:
-                    if (
-                        file_name.lower().endswith("dcm")
-                        and len(self.list_files) < MAX_LOAD_COUNT
-                    ):
-                        self.list_files.append(os.path.join(root, file_name))
-        print(len(self.list_files))
-        self.table_widget_dicom.setRowCount(len(self.list_files))
-
-        for i, file_path in enumerate(self.list_files):
-            self.list_ds.append(
-                dcmread(
-                    file_path,
-                    stop_before_pixels=not b_check_pixel_data,
-                    force=True,
-                )
-            )
-
-            self.progress_bar.setValue(
-                int(((i + 1) / (len(self.list_files)) * 100))
-            )
-            self.progress_bar.setFormat(
-                f"Loading {i+1}/{len(self.list_files)} {self.progress_bar.value()}%"
-            )
-            # self.progress_bar.update()
-            for j, tag in enumerate(self.list_current_tags):
-                try:
-                    if "," in tag:
-                        f, s = map(
-                            lambda z: int(z, 16),
-                            tag.replace(" ", "").split(","),
-                        )
-                        self.table_widget_dicom.setItem(
-                            i,
-                            j,
-                            QTableWidgetItem(str(self.list_ds[i][f, s].value)),
-                        )
-                    else:
-                        self.table_widget_dicom.setItem(
-                            i,
-                            j,
-                            QTableWidgetItem(str(self.list_ds[i][tag].value)),
-                        )
-                except KeyError:
-                    self.table_widget_dicom.setItem(
-                        i,
-                        j,
-                        QTableWidgetItem(""),
-                    )
-        self.button_load_file.setEnabled(True)
-
     def load_dcm(self):
         self.tab.setEnabled(False)
         b_check_pixel_data = self.check_load_pixel_data.isChecked()
@@ -708,9 +657,31 @@ class MainWindow(QMainWindow):
         self.load_dcm_thread.start()
         # self.load_dcm_thread.wait()
 
+    def save_dcm(self):
+        self.tab.setEnabled(False)
+
+        self.save_dcm_thread = SaveDcmThread(
+            self.table_widget_dicom.selectedIndexes(),
+            self.list_current_tags,
+            self.line_edit_tags,
+            self.list_ds,
+            self.list_file,
+            self.line_edit_target_path.text(),
+        )
+        self.save_dcm_thread.save_dcm_done_signal.connect(
+            self.save_dcm_done_slot
+        )
+        self.save_dcm_thread.progress_bar_update_signal.connect(
+            self.update_progress_bar_slot
+        )
+        self.save_dcm_thread.start()
+
     def load_dcm_done_slot(self, list_file, list_ds):
         self.list_ds = list_ds
         self.list_file = list_file
+        self.tab.setEnabled(True)
+
+    def save_dcm_done_slot(self):
         self.tab.setEnabled(True)
 
     def update_table_widget_slot(self, row, column, item):
@@ -719,10 +690,10 @@ class MainWindow(QMainWindow):
             row, column, QTableWidgetItem(str(item))
         )
 
-    def update_progress_bar_slot(self, i, total):
+    def update_progress_bar_slot(self, name, i, total):
         self.progress_bar.setValue(int((i / total * 100)))
         self.progress_bar.setFormat(
-            f"Reading {i}/{total} {self.progress_bar.value()}%"
+            f"{name} {i}/{total} {self.progress_bar.value()}%"
         )
 
 
