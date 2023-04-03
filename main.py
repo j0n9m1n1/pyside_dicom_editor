@@ -84,7 +84,7 @@ class SaveDcmThread(QThread):
 
     def __init__(
         self,
-        list_selected_index,
+        list_selected_rows,
         list_current_tags,
         line_edit_tags,
         list_ds,
@@ -92,7 +92,7 @@ class SaveDcmThread(QThread):
         line_edit_target_path,
     ):
         super().__init__()
-        self.list_selected_index = list_selected_index
+        self.list_selected_rows = list_selected_rows
         self.list_current_tags = list_current_tags
         self.line_edit_tags = line_edit_tags
         self.list_ds = list_ds
@@ -100,8 +100,8 @@ class SaveDcmThread(QThread):
         self.line_edit_target_path = line_edit_target_path
 
     def run(self):
-        for i, item in enumerate(self.list_selected_index):
-            total = len(self.list_selected_index)
+        for i, row in enumerate(self.list_selected_rows):
+            total = len(self.list_selected_rows)
             for j, tag in enumerate(self.list_current_tags):
                 try:
                     if self.line_edit_tags[j].text() != "":
@@ -111,34 +111,34 @@ class SaveDcmThread(QThread):
                                 tag.replace(" ", "").split(","),
                             )
                             print(
-                                f"[{tag}]Before: {self.list_ds[item.row()][f, s].value}",
+                                f"[{tag}]Before: {self.list_ds[row.row()][f, s].value}",
                                 end=" ",
                             )
-                            self.list_ds[item.row()][
+                            self.list_ds[row.row()][
                                 f, s
                             ].value = self.line_edit_tags[j].text()
                             print(
-                                f"After: {self.list_ds[item.row()][f, s].value}"
+                                f"After: {self.list_ds[row.row()][f, s].value}"
                             )
                         else:
                             print(
-                                f"[{tag}]Before: {self.list_ds[item.row()][tag].value}",
+                                f"[{tag}]Before: {self.list_ds[row.row()][tag].value}",
                                 end=" ",
                             )
-                            self.list_ds[item.row()][
+                            self.list_ds[row.row()][
                                 tag
                             ].value = self.line_edit_tags[j].text()
                             print(
-                                f"After: {self.list_ds[item.row()][tag].value}"
+                                f"After: {self.list_ds[row.row()][tag].value}"
                             )
                 except Exception:
                     pass
             # will be a checkbox option
-            maintain_original_directory_structure = False
+            kepp_dir_structure = False
 
-            file_path = Path(self.list_file[item.row()])
+            file_path = Path(self.list_file[row.row()])
 
-            if maintain_original_directory_structure:
+            if kepp_dir_structure:
                 output_path = self.line_edit_target_path
 
                 count_parts = len(file_path.parts)
@@ -165,7 +165,7 @@ class SaveDcmThread(QThread):
                 # self.progress_bar.setValue(
                 #     int(((i + 1) / len(self.list_selected_index) * 100))
                 # )
-                self.list_ds[item.row()].save_as(output_path)
+                self.list_ds[row.row()].save_as(output_path)
                 # self.progress_bar.setFormat(
                 #     f"Saving {i+1}/{len(self.list_selected_index)} {self.progress_bar.value()}%"
                 # )
@@ -242,6 +242,10 @@ class MainWindow(QMainWindow):
         self.button_tag_move_to_current = QPushButton()
         self.button_tag_move_to_available = QPushButton()
         self.button_save_tag = QPushButton()
+
+        self.dialog_view = QDialog()
+        self.tab_view = QTabWidget()
+        self.vbox_layout_view = QVBoxLayout()
 
     def ui_init2(self):
         self.table_widget_dicom.setSelectionBehavior(
@@ -661,7 +665,7 @@ class MainWindow(QMainWindow):
         self.tab.setEnabled(False)
 
         self.save_dcm_thread = SaveDcmThread(
-            self.table_widget_dicom.selectedIndexes(),
+            self.table_widget_dicom.selectionModel().selectedRows(),
             self.list_current_tags,
             self.line_edit_tags,
             self.list_ds,
@@ -696,9 +700,14 @@ class MainWindow(QMainWindow):
             f"{name} {i}/{total} {self.progress_bar.value()}%"
         )
 
+    def show_pixel_data(self):
+        self.tabWidget.addTab
+        pass
+
 
 app = QApplication(sys.argv)
 app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api="pyside6"))
 window = MainWindow()
+window.resize(1200, 600)
 window.show()
 app.exec()
