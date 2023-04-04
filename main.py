@@ -4,7 +4,7 @@ from PIL import Image, ImageQt
 import numpy as np
 from pathlib import Path
 from threading import Thread
-from pydicom import dcmread
+from pydicom import dcmread, datadict, _dicom_dict
 from PySide6.QtGui import *
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
@@ -81,6 +81,7 @@ class LoadDcmThread(QThread):
 class SaveDcmThread(QThread):
     save_dcm_done_signal = Signal()
     progress_bar_update_signal = Signal(str, int, int)
+    update_cell_signal = Signal(bool, int, int, str, str)
 
     def __init__(
         self,
@@ -110,29 +111,45 @@ class SaveDcmThread(QThread):
                                 lambda z: int(z, 16),
                                 tag.replace(" ", "").split(","),
                             )
-                            print(
-                                f"[{tag}]Before: {self.list_ds[row.row()][f, s].value}",
-                                end=" ",
-                            )
+                            before = str(self.list_ds[row.row()][f, s].value)
+
                             self.list_ds[row.row()][
                                 f, s
                             ].value = self.line_edit_tags[j].text()
-                            print(
-                                f"After: {self.list_ds[row.row()][f, s].value}"
+                            after = str(self.list_ds[row.row()][f, s].value)
+                            
+                            self.update_cell_signal.emit(
+                                True,
+                                row.row(),
+                                j,
+                                before,
+                                after
                             )
                         else:
-                            print(
-                                f"[{tag}]Before: {self.list_ds[row.row()][tag].value}",
-                                end=" ",
-                            )
+                            
+                            before = str(self.list_ds[row.row()][tag].value)
+                                
                             self.list_ds[row.row()][
                                 tag
                             ].value = self.line_edit_tags[j].text()
-                            print(
-                                f"After: {self.list_ds[row.row()][tag].value}"
+                        
+                            after = str(self.list_ds[row.row()][tag].value)
+                            
+                            self.update_cell_signal.emit(
+                                True,
+                                row.row(),
+                                j,
+                                before,
+                                after
                             )
                 except Exception:
-                    pass
+                    self.update_cell_signal.emit(
+                                False,
+                                row.row(),
+                                j,
+                                before,
+                                after
+                            )
             # will be a checkbox option
             kepp_dir_structure = False
 
@@ -189,6 +206,7 @@ class MainWindow(QMainWindow):
         self.ui_init2()
         self.focus_list_widget = None
 
+        # for data in _dicom_dict.DicomDictionary.items():
     def ui_init(self):
         self.tab_widget = QTabWidget()
 
@@ -531,8 +549,6 @@ class MainWindow(QMainWindow):
         self.t2 = Thread(target=self.create_modified_dcm)
         self.t2.start()
 
-    def create_modified_dcm(self):
-        pass
 
     def button_clicked_select_source_path(self):
         directory = QFileDialog.getExistingDirectory(
@@ -569,6 +585,8 @@ class MainWindow(QMainWindow):
             self.list_widget_available_tags.setCurrentRow(
                 self.list_widget_available_tags.count() - 1
             )
+    def create_modified_dcm(self):
+        pass
 
     def reload_table_widget(self):
         pass
@@ -692,7 +710,7 @@ class MainWindow(QMainWindow):
 
     def save_dcm(self):
         self.tab.setEnabled(False)
-
+      
         self.save_dcm_thread = SaveDcmThread(
             self.table_widget_dicom.selectionModel().selectedRows(),
             self.list_current_tags,
@@ -707,6 +725,8 @@ class MainWindow(QMainWindow):
         self.save_dcm_thread.progress_bar_update_signal.connect(
             self.update_progress_bar_slot
         )
+        self.save_dcm_thread.update_cell_signal.connect(self.update_cell)
+
         self.save_dcm_thread.start()
 
     def load_dcm_done_slot(self, list_file, list_ds):
@@ -716,6 +736,7 @@ class MainWindow(QMainWindow):
 
     def save_dcm_done_slot(self):
         self.tab.setEnabled(True)
+        self.table_widget_dicom.clearSelection()
 
     def update_table_widget_slot(self, row, column, item):
         self.table_widget_dicom.setRowCount(row + 1)
@@ -729,6 +750,19 @@ class MainWindow(QMainWindow):
             f"{name} {i}/{total} {self.progress_bar.value()}%"
         )
 
+    def update_cell(self, b_success, row, column, before, after):
+        if b_success:
+            self.table_widget_dicom.item(row, column).setBackground(
+                QColor(0, 192, 0)
+            )
+
+            self.table_widget_dicom.item(row, column).setToolTip(f"before: \"{before}\"")
+            self.table_widget_dicom.item(row, column).setText(after)
+        else:
+            self.table_widget_dicom.item(row, column).setBackground(
+                QColor(192, 0, 0)
+            )
+    
     def closeEvent(self, event):
         for widget in QApplication.topLevelWidgets():
             if isinstance(widget, QDialog):
