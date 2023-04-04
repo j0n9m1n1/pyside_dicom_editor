@@ -740,6 +740,8 @@ class MainWindow(QMainWindow):
 
     def update_table_widget_slot(self, row, column, item):
         self.table_widget_dicom.setRowCount(row + 1)
+        # utf8_string = str(item).encode('utf-8')
+        # print(utf8_string)
         self.table_widget_dicom.setItem(
             row, column, QTableWidgetItem(str(item))
         )
