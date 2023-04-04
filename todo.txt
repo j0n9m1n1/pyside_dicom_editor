@@ -5,3 +5,7 @@ limit 걸고 next누르면 더 가져오는 기능 추가
 로그 listwidget에 값 좀 넣기
 값 업데이트 된 cell 변경하기 - done
 anonymize 체크박스 옵션 추가하기 
+{
+    환자 식별 정보: (0010, 0010) - 환자 이름, (0010, 0020) - 환자 ID, (0010, 0030) - 생년월일 등
+    이미지 관련 정보: (0020, 000d) - Study Instance UID, (0020, 000e) - Series Instance UID, (0020, 0010) - Study ID, (0020, 0011) - Series Number, (0020, 0013) - Instance Number 등
+}
