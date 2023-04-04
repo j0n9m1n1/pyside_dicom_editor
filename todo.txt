@@ -1,5 +1,7 @@
 tab 별로 클래스 나누기
 save도 Qthread로 - done
-image load시 dialog 띄우기, 추가로 띄우면 tab에 추가하기
+image load시 dialog 띄우기, 추가로 띄우면 tab에 추가하기 - done
 limit 걸고 next누르면 더 가져오는 기능 추가
 로그 listwidget에 값 좀 넣기
+값 업데이트 된 cell 변경하기 - done
+anonymize 체크박스 옵션 추가하기 
