@@ -85,6 +85,9 @@ class TestStringMethods(unittest.TestCase):
             elif entry.is_dir():
                 self.test_scan_files_recursively(entry.path)
 
+    def test_get_dicom_character_set(self):
+        ds = dcmread(r"D:\_개발\lspine\06507_0708484_CR_I00010001.dcm")
+        print(ds["SpecificCharacterSet"].value)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)

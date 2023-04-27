@@ -4,7 +4,7 @@ from PIL import Image, ImageQt
 import numpy as np
 from pathlib import Path
 from threading import Thread
-from pydicom import dcmread, datadict, _dicom_dict
+from pydicom import dcmread, datadict, _dicom_dict, valuerep
 from PySide6.QtGui import *
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
@@ -47,27 +47,75 @@ class LoadDcmThread(QThread):
                     force=True,
                 )
             )
+            try:
+                character_set = self.list_ds[i]["SpecificCharacterSet"].value
+                print(str(i),  " " ,file_path, " ", self.list_ds[i]["SpecificCharacterSet"].value)
+                if("ISO_IR 100" in character_set):
+                    print("ISO_IR 100")
+                # print(character_set)
+            except KeyError:
+                character_set = None
+                print(str(i),  " " ,file_path, " ", "no SpecificCharacterSet")
             self.progress_bar_update_signal.emit("Reading", i + 1, total)
+            
             for j, tag in enumerate(self.list_current_tags):
                 try:
-                    if "," in tag:
-                        f, s = map(
-                            lambda z: int(z, 16),
-                            tag.replace(" ", "").split(","),
-                        )
-                        self.update_table_widget_signal.emit(
-                            i,
-                            j,
-                            str(self.list_ds[i][f, s].value),
-                        )
-
+                    if character_set == "ISO_IR 100" :
+                        if "," in tag:
+                            f, s = map(
+                                lambda z: int(z, 16),
+                                tag.replace(" ", "").split(","),
+                            )
+                            try:
+                                # self.loaded_value = (self.list_ds[i][f, s].value).encode("utf8")
+                                self.loaded_value = (self.list_ds[i][f, s].value)
+                            except TypeError:
+                                self.loaded_value = self.list_ds[i][f, s].value
+                                print(f'TypeError: {type(self.list_ds[i][f, s].value)}')
+                            except AttributeError:
+                                self.loaded_value = self.list_ds[i][f, s].value
+                                print(f'AttributeError: {type(self.list_ds[i][f, s].value)}')
+                            self.update_table_widget_signal.emit(
+                                i,
+                                j,
+                                self.loaded_value,
+                            )
+                            print(self.loaded_value)
+                        else:
+                            try:
+                                # self.loaded_value = (self.list_ds[i][tag].value).encode("utf8")
+                                self.loaded_value = (self.list_ds[i][tag].value)
+                            except TypeError:
+                                self.loaded_value = self.list_ds[i][tag].value
+                                print(f'type error: {type(self.list_ds[i][tag].value)}')
+                            except AttributeError:
+                                self.loaded_value = self.list_ds[i][tag].value
+                                print(f'AttributeError: {type(self.list_ds[i][tag].value)}')
+                            self.update_table_widget_signal.emit(
+                                i,
+                                j,
+                                self.loaded_value,
+                            )
+                            print(self.loaded_value)
                     else:
-                        # QMetaObject.invokeMethod(Q_ARG(int, i))
-                        self.update_table_widget_signal.emit(
-                            i,
-                            j,
-                            str(self.list_ds[i][tag].value),
-                        )
+                        if "," in tag:
+                            f, s = map(
+                                lambda z: int(z, 16),
+                                tag.replace(" ", "").split(","),
+                            )
+                            self.update_table_widget_signal.emit(
+                                i,
+                                j,
+                                str(self.list_ds[i][f, s].value),
+                            )
+
+                        else:
+                            # QMetaObject.invokeMethod(Q_ARG(int, i))
+                            self.update_table_widget_signal.emit(
+                                i,
+                                j,
+                                str(self.list_ds[i][tag].value),
+                            )
                 except KeyError:
                     self.update_table_widget_signal.emit(
                         i,
@@ -777,4 +825,5 @@ app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api="pyside6"))
 window = MainWindow()
 window.resize(1200, 600)
 window.show()
+
 app.exec()
