@@ -8,10 +8,13 @@ from pydicom import dcmread, datadict, _dicom_dict, valuerep
 from PySide6.QtGui import *
 from PySide6.QtCore import *
 from PySide6.QtWidgets import *
+from PySide6.QtGui import QIcon
 import qdarkstyle
 
 MAX_LOAD_COUNT = 500
 
+import ctypes
+ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('jmlee.dicom_header_editor.1.0.0')
 
 class LoadDcmThread(QThread):
     load_dcm_done_signal = Signal(list, list)
@@ -20,6 +23,7 @@ class LoadDcmThread(QThread):
 
     def __init__(self, source_path, list_current_tags, b_check_pixel_data):
         super().__init__()
+
         self.list_files = list()
         self.list_ds = list()
 
@@ -124,7 +128,6 @@ class LoadDcmThread(QThread):
                     )
 
         self.load_dcm_done_signal.emit(self.list_files, self.list_ds)
-
 
 class SaveDcmThread(QThread):
     save_dcm_done_signal = Signal()
@@ -243,6 +246,8 @@ class SaveDcmThread(QThread):
 class MainWindow(QMainWindow):
     def __init__(self):
         super(MainWindow, self).__init__()
+
+        self.setWindowIcon(QIcon('icon.png'))
 
         self.list_ds = list()
         self.list_files = list()
@@ -483,7 +488,7 @@ class MainWindow(QMainWindow):
         self.dialog_view.setLayout(self.vbox_layout_view)
 
         self.setCentralWidget(self.tab_widget)
-        self.setWindowTitle("DICOM Header Editor")
+        self.setWindowTitle("DICOM header editor")
 
     # https://github.com/pydicom/contrib-pydicom/blob/master/viewers/pydicom_PIL.py
     def get_LUT_value(self, data, window, level):
@@ -819,11 +824,14 @@ class MainWindow(QMainWindow):
                 widget.close()
         event.accept()
 
+if __name__ == "__main__":
 
-app = QApplication(sys.argv)
-app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api="pyside6"))
-window = MainWindow()
-window.resize(1200, 600)
-window.show()
+    app = QApplication(sys.argv)
+    app.setStyleSheet(qdarkstyle.load_stylesheet(qt_api="pyside6"))
+    window = MainWindow()
+    icon = QIcon('icon.png')
+    window.setWindowIcon(icon)
+    window.resize(1200, 600)
+    window.show()
 
-app.exec()
+    app.exec()
