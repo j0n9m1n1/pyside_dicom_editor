@@ -20,6 +20,7 @@ class LoadDcmThread(QThread):
     load_dcm_done_signal = Signal(list, list)
     update_table_widget_signal = Signal(int, int, str)
     progress_bar_update_signal = Signal(str, int, int)
+    add_log_message_signal = Signal(str)
 
     def __init__(self, source_path, list_current_tags, b_check_pixel_data):
         super().__init__()
@@ -53,13 +54,15 @@ class LoadDcmThread(QThread):
             )
             try:
                 character_set = self.list_ds[i]["SpecificCharacterSet"].value
-                print(str(i),  " " ,file_path, " ", self.list_ds[i]["SpecificCharacterSet"].value)
+                self.add_log_message_signal.emit(f'FileNo: {str(i)}, Path: {file_path}')
+                self.add_log_message_signal.emit(f'{self.list_ds[i]["SpecificCharacterSet"]}')
                 if("ISO_IR 100" in character_set):
-                    print("ISO_IR 100")
-                # print(character_set)
+                    # self.add_log_message_signal.emit('ISO_IR 100')
+                    pass
             except KeyError:
                 character_set = None
-                print(str(i),  " " ,file_path, " ", "no SpecificCharacterSet")
+                self.add_log_message_signal.emit(f'{str(i)}, {file_path}, no SpecificCharacterSet')
+
             self.progress_bar_update_signal.emit("Reading", i + 1, total)
             
             for j, tag in enumerate(self.list_current_tags):
@@ -75,32 +78,33 @@ class LoadDcmThread(QThread):
                                 self.loaded_value = (self.list_ds[i][f, s].value)
                             except TypeError:
                                 self.loaded_value = self.list_ds[i][f, s].value
-                                print(f'TypeError: {type(self.list_ds[i][f, s].value)}')
+                                self.add_log_message_signal.emit(f'TypeError: {type(self.list_ds[i][f, s].value)}')
                             except AttributeError:
                                 self.loaded_value = self.list_ds[i][f, s].value
-                                print(f'AttributeError: {type(self.list_ds[i][f, s].value)}')
+                                self.add_log_message_signal.emit(f'AttributeError: {type(self.list_ds[i][f, s].value)}')
+
                             self.update_table_widget_signal.emit(
                                 i,
                                 j,
                                 self.loaded_value,
                             )
-                            print(self.loaded_value)
+                            self.add_log_message_signal.emit(f'({tag}): {self.list_ds[i][f, s].value}')
                         else:
                             try:
                                 # self.loaded_value = (self.list_ds[i][tag].value).encode("utf8")
                                 self.loaded_value = (self.list_ds[i][tag].value)
                             except TypeError:
                                 self.loaded_value = self.list_ds[i][tag].value
-                                print(f'type error: {type(self.list_ds[i][tag].value)}')
+                                self.add_log_message_signal.emit(f'TypeError: {type(self.list_ds[i][tag].value)}')
                             except AttributeError:
                                 self.loaded_value = self.list_ds[i][tag].value
-                                print(f'AttributeError: {type(self.list_ds[i][tag].value)}')
+                                self.add_log_message_signal.emit(f'AttributeError: {type(self.list_ds[i][tag].value)}')
                             self.update_table_widget_signal.emit(
                                 i,
                                 j,
                                 self.loaded_value,
                             )
-                            print(self.loaded_value)
+                            self.add_log_message_signal.emit(f'{self.list_ds[i][tag]}')
                     else:
                         if "," in tag:
                             f, s = map(
@@ -126,6 +130,7 @@ class LoadDcmThread(QThread):
                         j,
                         "",
                     )
+            self.add_log_message_signal.emit(f'---------------------------------------------------------------------------------------------------------------------------------------------')
 
         self.load_dcm_done_signal.emit(self.list_files, self.list_ds)
 
@@ -133,6 +138,7 @@ class SaveDcmThread(QThread):
     save_dcm_done_signal = Signal()
     progress_bar_update_signal = Signal(str, int, int)
     update_cell_signal = Signal(bool, int, int, str, str)
+    add_log_message_signal = Signal(str)
 
     def __init__(
         self,
@@ -202,11 +208,11 @@ class SaveDcmThread(QThread):
                                 after
                             )
             # will be a checkbox option
-            kepp_dir_structure = False
+            keep_dir_structure = False
 
             file_path = Path(self.list_file[row.row()])
 
-            if kepp_dir_structure:
+            if keep_dir_structure:
                 output_path = self.line_edit_target_path
 
                 count_parts = len(file_path.parts)
@@ -230,14 +236,8 @@ class SaveDcmThread(QThread):
                     os.makedirs(os.path.dirname(output_path))
 
                 self.progress_bar_update_signal.emit("Saving", i + 1, total)
-                # self.progress_bar.setValue(
-                #     int(((i + 1) / len(self.list_selected_index) * 100))
-                # )
                 self.list_ds[row.row()].save_as(output_path)
-                # self.progress_bar.setFormat(
-                #     f"Saving {i+1}/{len(self.list_selected_index)} {self.progress_bar.value()}%"
-                # )
-                print(f"saved: {output_path}")
+                self.add_log_message_signal.emit(f"Saved: {output_path}")
             except:
                 pass
         self.save_dcm_done_signal.emit()
@@ -748,6 +748,10 @@ class MainWindow(QMainWindow):
             self.list_current_tags,
             b_check_pixel_data,
         )
+
+        self.load_dcm_thread.add_log_message_signal.connect(
+            self.add_log_message_slot
+        )
         self.load_dcm_thread.load_dcm_done_signal.connect(
             self.load_dcm_done_slot
         )
@@ -780,7 +784,16 @@ class MainWindow(QMainWindow):
         )
         self.save_dcm_thread.update_cell_signal.connect(self.update_cell)
 
+        self.save_dcm_thread.add_log_message_signal.connect(
+            self.add_log_message_slot
+        )
+
         self.save_dcm_thread.start()
+
+    def add_log_message_slot(self, msg):
+        item = QListWidgetItem(msg)
+        self.list_widget_log.addItem(item)
+        self.list_widget_log.scrollToItem(self.list_widget_log.item(self.list_widget_log.count() - 1))
 
     def load_dcm_done_slot(self, list_file, list_ds):
         self.list_ds = list_ds
